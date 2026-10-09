@@ -1,0 +1,540 @@
+Build a professional Flutter mobile application called **VoltPlan**.
+
+VoltPlan is an AI-assisted electrical planning and estimation app for building professionals.
+
+## Important scope
+
+This is a real commercial mobile application, not a toy/demo.
+
+For this first implementation, focus on **UI/UX and frontend architecture only**.
+
+Do NOT implement:
+
+* Architectural floor-plan editing
+* CAD functionality
+* Manual electrical drawing/editing
+* Real AI integration
+* Real electrical calculations
+* Backend APIs
+* Authentication backend
+* Payment systems
+
+Use realistic mock data and structure the code so these capabilities can be integrated later.
+
+## Technology
+
+* Flutter
+* Dart
+* Material 3
+* Responsive mobile-first design
+* Clean feature-based architecture
+* Reusable components
+* Proper navigation
+* Dark/light theme support if practical
+
+## Product concept
+
+The user workflow should be:
+
+Dashboard
+→ Create Project
+→ Upload Architectural Plan
+→ AI Analysis
+→ Electrical Recommendations
+→ Electrical Plan
+→ BOQ
+→ Cost Estimate
+→ Report
+
+The uploaded architectural plan is VIEW-ONLY.
+
+There is no floor-plan editing in this version.
+
+## Visual direction
+
+Create a premium engineering/technology product.
+
+Design references:
+
+* Linear
+* Figma
+* Autodesk
+* modern engineering software
+* professional fintech/SaaS interfaces
+
+The interface should communicate:
+
+Precision
+Trust
+Engineering
+Reliability
+Efficiency
+
+Avoid:
+
+* excessive gradients
+* excessive glassmorphism
+* cartoonish AI graphics
+* generic startup landing-page aesthetics
+* oversized decorative elements
+* unnecessary animations
+
+Use a clean light interface with restrained blue/indigo accents, neutral surfaces, subtle borders, and strong typography.
+
+## Main navigation
+
+Use a mobile-friendly bottom navigation:
+
+Home
+Projects
+Materials
+Profile
+
+## Screen 1 — Dashboard
+
+Create a polished dashboard containing:
+
+Header:
+"Good morning"
+User name
+Notification icon
+
+Primary action:
+"+ New Project"
+
+Statistics:
+
+* Active Projects
+* Completed Analyses
+* Estimated Projects
+
+Recent Projects list.
+
+Each project card should show:
+
+* Project name
+* Client
+* Building type
+* Last updated
+* Analysis status
+
+Example projects:
+
+"Modern Family House"
+"3 Bedroom Residence"
+"Office Renovation"
+
+## Screen 2 — Projects
+
+Show all projects.
+
+Include:
+
+* Search
+* Filter
+* Project cards
+* Floating/add project button
+
+Project card:
+Project name
+Client
+Location
+Status
+Last updated
+
+## Screen 3 — Create Project
+
+Form fields:
+
+Project Name
+Client Name
+Building Type
+Location
+Electrical Standard
+Notes
+
+Building type examples:
+
+* Residential
+* Commercial
+* Office
+* Apartment
+
+Primary button:
+
+"Create Project"
+
+## Screen 4 — Project Overview
+
+Show:
+
+Project name
+Client
+Status
+
+Progress timeline:
+
+1. Floor Plan
+2. AI Analysis
+3. Electrical Design
+4. BOQ
+5. Cost Estimate
+6. Report
+
+Display the uploaded architectural plan preview.
+
+Primary action:
+
+"Upload Floor Plan"
+
+Accepted formats:
+PDF
+PNG
+JPG
+
+## Screen 5 — Upload Floor Plan
+
+Create a polished upload interface.
+
+Show:
+"Upload Architectural Plan"
+
+Supported formats:
+PDF, PNG, JPG
+
+Maximum file size indicator.
+
+Use a large upload area with:
+
+Upload from device
+
+Also show recently uploaded files.
+
+After upload, navigate to the analysis screen.
+
+## Screen 6 — AI Analysis
+
+Create an analysis progress screen.
+
+Header:
+
+"Analyzing Floor Plan"
+
+Display the uploaded plan preview.
+
+Show processing stages:
+
+✓ Uploading floor plan
+✓ Reading architectural drawing
+● Detecting rooms
+○ Identifying electrical requirements
+○ Preparing recommendations
+
+Use a subtle professional animation.
+
+When complete, show:
+
+"Analysis Complete"
+
+Example results:
+
+8 Rooms Detected
+24 Electrical Points
+5 Recommended Circuits
+1 Distribution Board
+
+Button:
+
+"View Recommendations"
+
+## Screen 7 — Electrical Recommendations
+
+Display AI-generated recommendations grouped by room.
+
+Example:
+
+LIVING ROOM
+
+2 Ceiling Lights
+4 Double Sockets
+1 TV Point
+
+KITCHEN
+
+2 Ceiling Lights
+6 Double Sockets
+1 Cooker Point
+1 Refrigerator Point
+
+BEDROOM 1
+
+1 Ceiling Light
+3 Double Sockets
+
+Each recommendation should have:
+
+* Icon
+* Description
+* Quantity
+* Recommendation status
+
+Allow the user to tap an item to see details.
+
+Use language such as:
+
+"Recommended"
+
+"Preliminary"
+
+"Review Required"
+
+Do not claim that the AI replaces a licensed electrical engineer.
+
+## Screen 8 — Electrical Plan
+
+Display the uploaded architectural plan as a large view-only canvas.
+
+Overlay mock electrical symbols:
+
+Light
+Switch
+Socket
+Distribution Board
+Appliance Point
+
+Allow:
+
+* Zoom
+* Pan
+* Tap symbol to inspect
+
+DO NOT allow editing or dragging symbols.
+
+When a symbol is tapped, show a bottom sheet with:
+
+Component
+Room
+Quantity
+Recommended cable
+Circuit
+Protection
+
+Example:
+
+Double Socket
+
+Room:
+Living Room
+
+Cable:
+2.5 mm²
+
+Circuit:
+SOCKET-01
+
+Protection:
+20A MCB
+
+Status:
+Recommended
+
+## Screen 9 — Circuits
+
+Create a professional electrical circuit list.
+
+Example:
+
+LGT-01
+Lighting
+8 points
+1.5 mm²
+10A MCB
+
+SOCKET-01
+General sockets
+12 points
+2.5 mm²
+20A MCB
+
+KITCHEN-01
+Kitchen appliances
+4 points
+4 mm²
+25A MCB
+
+Use status indicators:
+Recommended
+Review
+Warning
+
+## Screen 10 — Materials / BOQ
+
+Create a professional BOQ screen.
+
+Categories:
+
+Cables
+Lighting
+Switches
+Sockets
+Protection
+Distribution Board
+Conduits
+Accessories
+
+Table/card information:
+
+Item
+Specification
+Quantity
+Unit
+Unit Price
+Total
+
+Example:
+
+1.5 mm² Cable
+180 m
+
+2.5 mm² Cable
+320 m
+
+LED Ceiling Light
+14 pcs
+
+Double Socket
+18 pcs
+
+20A MCB
+5 pcs
+
+Allow editing of quantities for mock UI purposes, but don't implement real calculation logic yet.
+
+## Screen 11 — Cost Estimate
+
+Create a clear cost summary.
+
+Estimated Electrical Cost:
+
+1,245,000 RWF
+
+Breakdown:
+
+Materials
+Labor
+Contingency
+
+Use a professional visual breakdown.
+
+Include:
+
+"Preliminary estimate"
+
+"Prices should be verified with suppliers."
+
+## Screen 12 — Report
+
+Show a report preview containing:
+
+Project information
+Floor plan
+Electrical recommendations
+Circuit summary
+Materials / BOQ
+Cost estimate
+
+Primary button:
+
+"Generate Report"
+
+Use a mock PDF-generation action for now.
+
+## Screen 13 — Profile / Settings
+
+Include:
+
+Profile
+Company
+Electrical Standard
+Units
+Notifications
+Theme
+Help & Support
+About VoltPlan
+
+## UX requirements
+
+The app should feel like a real professional engineering product.
+
+Use:
+
+* Bottom sheets
+* Cards
+* Tabs where appropriate
+* Floating actions
+* Clear hierarchy
+* Consistent spacing
+* Proper empty states
+* Loading states
+* Error states
+* Success states
+
+Avoid overcrowding screens.
+
+The floor plan should always remain the visual centerpiece of the analysis/design workflow.
+
+## Architecture
+
+Use a clean feature-based Flutter structure.
+
+Organize code approximately as:
+
+lib/
+app/
+core/
+features/
+auth/
+dashboard/
+projects/
+floor_plan/
+analysis/
+electrical/
+boq/
+cost_estimate/
+reports/
+settings/
+shared/
+
+Keep UI, models, services, and state management separated.
+
+Create reusable components for:
+
+* Project cards
+* Status badges
+* Primary buttons
+* Section headers
+* Metric cards
+* Bottom sheets
+* Empty states
+* Loading states
+
+## Mock data
+
+Use realistic mock data throughout the application.
+
+Do not use lorem ipsum.
+
+Use Rwandan context where appropriate:
+
+* RWF currency
+* realistic residential projects
+* realistic electrical materials
+* realistic quantities
+
+## Important
+
+Do not build a fake AI system that pretends to actually analyze an uploaded architectural drawing.
+
+For this version, simulate the analysis using mock data while keeping the code structured so a real backend/API can replace the mock service later.
+
+The final result should look like a polished commercial mobile application that is ready for the next development phase.

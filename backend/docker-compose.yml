@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: voltplan_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: voltplan_user
+      POSTGRES_PASSWORD: voltplan_password
+      POSTGRES_DB: voltplan_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voltplan_user -d voltplan_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: voltplan_backend
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://voltplan_user:voltplan_password@db:5432/voltplan_db
+      - AI_PROVIDER=mock
+      - UPLOAD_DIR=/app/uploads
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/app/uploads
+
+volumes:
+  postgres_data:
