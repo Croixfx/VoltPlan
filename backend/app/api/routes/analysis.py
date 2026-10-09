@@ -1,3 +1,4 @@
+from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -94,6 +95,20 @@ def get_project_cost_estimate(project_id: str, db: Session = Depends(get_db)):
     return CostEstimateResponse(**analysis.cost_estimate_data)
 
 
+@router.get("/{project_id}/canonical-geometry", response_model=Dict[str, Any])
+def get_project_canonical_geometry(project_id: str, db: Session = Depends(get_db)):
+    """Returns the trusted canonical physical building geometry model (in millimeters)."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
+
+    analysis = db.query(Analysis).filter(Analysis.project_id == project_id).first()
+    if not analysis or not analysis.canonical_geometry_data:
+        raise HTTPException(status_code=404, detail="Canonical building geometry not available. Run analysis on the project first.")
+
+    return analysis.canonical_geometry_data
+
+
 def _build_analysis_response(project: Project, analysis: Analysis) -> AnalysisResultResponse:
     rooms = [RoomObservation(**r) for r in (analysis.rooms_data or [])]
     features = [ArchitecturalFeature(**f) for f in (analysis.architectural_features_data or [])]
@@ -106,6 +121,14 @@ def _build_analysis_response(project: Project, analysis: Analysis) -> AnalysisRe
     if analysis.cost_estimate_data:
         cost_estimate = CostEstimateResponse(**analysis.cost_estimate_data)
 
+    from app.schemas.canonical_geometry import CanonicalFloorPlan
+    canonical_geom = None
+    if analysis.canonical_geometry_data:
+        try:
+            canonical_geom = CanonicalFloorPlan(**analysis.canonical_geometry_data)
+        except Exception:
+            canonical_geom = None
+
     return AnalysisResultResponse(
         project_id=project.id,
         status=analysis.status,
@@ -115,6 +138,7 @@ def _build_analysis_response(project: Project, analysis: Analysis) -> AnalysisRe
         architectural_features=features,
         observations=analysis.observations or [],
         warnings=analysis.warnings or [],
+        canonical_geometry=canonical_geom,
         electrical_points=electrical_points,
         circuits=circuits,
         wiring_arcs=wiring_arcs,

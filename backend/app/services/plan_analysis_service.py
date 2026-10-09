@@ -68,6 +68,37 @@ class PlanAnalysisService:
             analysis.warnings = vision_result.warnings
             db.commit()
 
+            # Step 2.5: Canonical Building Geometry Model (Phase 1)
+            logger.info(f"[{project_id}] Step 2.5: Establishing Canonical Building Geometry Model")
+            img_w, img_h = 1200, 900
+            try:
+                import cv2
+                img_mat = cv2.imread(analysis_image_path)
+                if img_mat is not None:
+                    img_h, img_w = img_mat.shape[:2]
+            except Exception:
+                pass
+
+            from app.services.canonical_geometry_service import CanonicalGeometryService
+            canonical_plan = CanonicalGeometryService.build_canonical_floor_plan(
+                rooms=vision_result.rooms,
+                features=vision_result.architectural_features,
+                image_path=analysis_image_path,
+                pixel_width=img_w,
+                pixel_height=img_h,
+                scale_mm_per_pixel=None,
+                is_scale_verified=False,
+                building_type=project.building_type,
+                standard_name=project.standard,
+                source_file_name=project.floor_plan_name or "floor_plan.png",
+            )
+            analysis.canonical_geometry_data = canonical_plan.model_dump()
+            if not canonical_plan.is_scale_verified:
+                scale_warn = "Plan scale is uncalibrated. Physical coordinates and areas are heuristic architectural estimates."
+                if scale_warn not in analysis.warnings:
+                    analysis.warnings.append(scale_warn)
+            db.commit()
+
             # Step 3: Deterministic Electrical Engineering Engine
             logger.info(f"[{project_id}] Step 3: Generating deterministic electrical recommendations ({project.standard})")
             analysis.current_step = "generating_recommendations"

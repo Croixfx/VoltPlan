@@ -26,8 +26,20 @@ def get_db():
 
 
 def init_db():
+    from sqlalchemy import text
     import app.models.project  # noqa: F401
     import app.models.analysis  # noqa: F401
     import app.models.material  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+
+    # Ensure canonical_geometry_data column exists on analyses table for SQLite
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("PRAGMA table_info(analyses)"))
+            cols = [row[1] for row in result.fetchall()]
+            if cols and "canonical_geometry_data" not in cols:
+                conn.execute(text("ALTER TABLE analyses ADD COLUMN canonical_geometry_data JSON"))
+                conn.commit()
+    except Exception:
+        pass

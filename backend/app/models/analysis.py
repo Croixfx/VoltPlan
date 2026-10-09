@@ -20,6 +20,9 @@ class Analysis(Base):
     observations = Column(JSON, nullable=False, default=list)
     warnings = Column(JSON, nullable=False, default=list)
 
+    # Phase 1 Canonical Building Geometry Model
+    canonical_geometry_data = Column(JSON, nullable=True, default=dict)
+
     # Deterministic Engineering Results
     electrical_points_data = Column(JSON, nullable=False, default=list)
     circuits_data = Column(JSON, nullable=False, default=list)

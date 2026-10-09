@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from app.schemas.floor_plan import RoomObservation, ArchitecturalFeature
 from app.schemas.electrical import ElectricalPoint, Circuit, WiringArc
 from app.schemas.boq import BOQItem, CostEstimateResponse
+from app.schemas.canonical_geometry import CanonicalFloorPlan
 
 
 class AnalysisStatusResponse(BaseModel):
@@ -28,6 +29,9 @@ class AnalysisResultResponse(BaseModel):
     architectural_features: List[ArchitecturalFeature] = Field(default_factory=list)
     observations: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
+
+    # Phase 1 Canonical Building Geometry Model
+    canonical_geometry: Optional[CanonicalFloorPlan] = None
 
     electrical_points: List[ElectricalPoint] = Field(default_factory=list)
     circuits: List[Circuit] = Field(default_factory=list)
