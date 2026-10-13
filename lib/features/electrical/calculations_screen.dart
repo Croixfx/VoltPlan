@@ -27,6 +27,11 @@ class _CalculationsScreenState extends State<CalculationsScreen> {
   String? _error;
   bool _loading = true;
 
+  // Installation conditions for the cable-capacity check
+  String _method = 'B2';
+  int _ambientC = 30;
+  int _grouped = 1;
+
   String get _pid => (widget.state.selectedProject ?? widget.project).id;
 
   @override
@@ -37,11 +42,16 @@ class _CalculationsScreenState extends State<CalculationsScreen> {
 
   Future<void> _load() async {
     setState(() {
-      _loading = true;
+      _loading = _data == null; // keep showing the previous figures while they refresh
       _error = null;
     });
     try {
-      final data = await (widget.repository ?? CalculationsRepository()).getCalculations(_pid);
+      final data = await (widget.repository ?? CalculationsRepository()).getCalculations(
+        _pid,
+        method: _method,
+        ambientC: _ambientC,
+        groupedCircuits: _grouped,
+      );
       if (mounted) setState(() => _data = data);
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -92,6 +102,10 @@ class _CalculationsScreenState extends State<CalculationsScreen> {
         _maxDemandCard(data['max_demand'] as Map<String, dynamic>),
         const SizedBox(height: 12),
         _voltageDropCard(data['voltage_drop'] as Map<String, dynamic>),
+        if (data['cable_capacity'] != null) ...[
+          const SizedBox(height: 12),
+          _capacityCard(data['cable_capacity'] as Map<String, dynamic>),
+        ],
         const SizedBox(height: 12),
         _references(List<String>.from(data['references'] as List? ?? const [])),
       ],
@@ -212,6 +226,150 @@ class _CalculationsScreenState extends State<CalculationsScreen> {
         children: [for (final a in assumptions) Padding(padding: const EdgeInsets.only(bottom: 6), child: Text('• $a', style: const TextStyle(fontSize: 12)))],
       ),
     ]);
+  }
+
+  Widget _dropdown<T>({
+    required Key fieldKey,
+    required String label,
+    required T value,
+    required List<T> items,
+    required String Function(T) text,
+    required ValueChanged<T> onChanged,
+  }) {
+    return SizedBox(
+      width: 165,
+      child: DropdownButtonFormField<T>(
+        key: fieldKey,
+        initialValue: value,
+        isDense: true,
+        isExpanded: true,
+        decoration: InputDecoration(labelText: label, isDense: true, border: const OutlineInputBorder()),
+        items: [for (final i in items) DropdownMenuItem(value: i, child: Text(text(i), style: const TextStyle(fontSize: 13)))],
+        onChanged: (v) {
+          if (v != null && v != value) onChanged(v);
+        },
+      ),
+    );
+  }
+
+  Widget _capacityCard(Map<String, dynamic> cap) {
+    final options = cap['options'] as Map<String, dynamic>;
+    final available = options['available'] as Map<String, dynamic>;
+    final circuits = List<Map<String, dynamic>>.from(cap['circuits'] as List? ?? const []);
+    final assumptions = List<String>.from(cap['assumptions'] as List? ?? const []);
+    final summary = cap['summary'] as Map<String, dynamic>? ?? {};
+
+    return _card(title: 'Cable current capacity', children: [
+      Text('Is every cable big enough for the breaker protecting it?  Ib ≤ In ≤ Iz',
+          style: const TextStyle(fontSize: 12.5)),
+      const SizedBox(height: 10),
+      Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          _dropdown<String>(
+            fieldKey: const Key('cap-method'),
+            label: 'Installation',
+            value: options['method'] as String,
+            items: List<String>.from(available['methods'] as List),
+            text: (m) => m,
+            onChanged: (v) {
+              setState(() => _method = v);
+              _load();
+            },
+          ),
+          _dropdown<int>(
+            fieldKey: const Key('cap-ambient'),
+            label: 'Ambient',
+            value: options['ambient_c'] as int,
+            items: List<int>.from(available['ambient_c'] as List),
+            text: (t) => '$t °C',
+            onChanged: (v) {
+              setState(() => _ambientC = v);
+              _load();
+            },
+          ),
+          _dropdown<int>(
+            fieldKey: const Key('cap-grouped'),
+            label: 'Bunched circuits',
+            value: options['grouped_circuits'] as int,
+            items: List<int>.from(available['grouped_circuits'] as List),
+            text: (n) => n == 1 ? 'none' : '$n together',
+            onChanged: (v) {
+              setState(() => _grouped = v);
+              _load();
+            },
+          ),
+        ],
+      ),
+      const SizedBox(height: 4),
+      Text('Method ${options['method']}: ${options['method_description']}',
+          key: const Key('cap-method-description'), style: const TextStyle(fontSize: 12)),
+      const SizedBox(height: 10),
+      Text('${summary['circuits_checked']} circuits checked • ${summary['failing']} failing • '
+          '${summary['marginal']} marginal',
+          key: const Key('cap-summary'), style: const TextStyle(fontSize: 13)),
+      const SizedBox(height: 8),
+      for (final c in circuits) _capacityRow(c),
+      ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: const Text('Assumptions', style: TextStyle(fontSize: 13)),
+        children: [for (final a in assumptions) Padding(padding: const EdgeInsets.only(bottom: 6), child: Text('• $a', style: const TextStyle(fontSize: 12)))],
+      ),
+    ]);
+  }
+
+  Widget _capacityRow(Map<String, dynamic> c) {
+    final status = c['status'] as String? ?? 'not_calculated';
+    final color = switch (status) {
+      'pass' => Colors.green,
+      'marginal' => Colors.orange,
+      'fail' => Colors.red,
+      _ => Colors.grey,
+    };
+    final lines = <String>[];
+    if (status == 'not_calculated') {
+      lines.add(c['reason'] as String? ?? '');
+    } else {
+      lines.add('${c['cable_mm2']} mm² cable, ${c['protective_device_a']} A device → capacity ${c['capacity_a']} A '
+          '(${c['utilisation_percent']} % used)');
+      if (c['reason'] != null) lines.add(c['reason'] as String);
+      if (status == 'fail') {
+        final fixes = <String>[
+          if (c['recommended_cable_mm2'] != null) 'use at least ${c['recommended_cable_mm2']} mm²',
+          if (c['reduce_device_to_a'] != null) 'or reduce the device to ${c['reduce_device_to_a']} A',
+        ];
+        if (fixes.isNotEmpty) lines.add(fixes.join(' '));
+      } else {
+        final n = c['max_grouped_circuits'];
+        lines.add(n == 1 ? 'must not share its route with other circuits' : 'fine with up to $n circuits bunched');
+      }
+    }
+    return Padding(
+      key: Key('cap-row-${c['circuit_id']}'),
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${c['name']}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                for (final l in lines) Text(l, style: const TextStyle(fontSize: 12)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+            child: Text(status.replaceAll('_', ' ').toUpperCase(),
+                style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: color)),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _circuitRow(Map<String, dynamic> c) {

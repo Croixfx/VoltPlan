@@ -43,6 +43,7 @@ def test_report_compares_rooms_names_equipment_and_demand(client, plan):
 
     calc = rep["calculations"]
     assert calc["voltage_drop_status"] == "not_calculated" and "scale" in calc["voltage_drop_reason"]
+    assert calc["cable_capacity_failing"] == []                    # capacity does not need a scale or a board
     assert calc["electrician_max_demand_a"] == 50
     assert calc["max_demand_difference_percent"] == pytest.approx((calc["max_demand_a"] - 50) / 50 * 100, abs=0.1)
 
@@ -82,6 +83,7 @@ def test_markdown_report_is_readable(client, plan):
     rep = ev.evaluate_plan(client, plan, {"rooms": [{"name": "Living Room", "equipment": {"lighting": 2}}]})
     md = ev.render_markdown([rep], "mock")
     assert "MOCK PROVIDER" in md and "## villa" in md and "| lighting | 2 |" in md
+    assert "Cable capacity" in md and "all circuits pass" in md
 
 
 def test_real_provider_without_a_key_refuses_to_run(tmp_path, monkeypatch):

@@ -89,7 +89,7 @@ pytest -v
 - `POST|PATCH|DELETE /api/projects/{id}/doors[/{door_id}]` — Add, move (wall + position), flip or delete doors
 - `POST /api/projects/{id}/regenerate` — Rebuild equipment, circuits, BOQ and cost from the stored (corrected) rooms/doors. Runs the geometry checks first and returns 422 with the issue list if any fail; the previous design is left untouched.
 - `POST /api/projects/{id}/analyze?reset_geometry=true` — Re-read the plan with AI. Without the flag this returns 409 if the project has manual room/door corrections, so they are never discarded silently.
-- `GET /api/projects/{id}/calculations` — Voltage drop per circuit and maximum demand (preliminary; see `docs/CALCULATION_REVIEW.md`)
+- `GET /api/projects/{id}/calculations[?method=B2&ambient_c=30&grouped_circuits=1]` — Voltage drop per circuit, cable current-carrying capacity and maximum demand (preliminary; see `docs/CALCULATION_REVIEW.md`)
 - `GET /api/projects` — List projects (with search filter)
 - `GET /api/projects/{id}` — Get project by ID
 - `POST /api/projects/{id}/plan` — Upload architectural plan (PDF/PNG/JPG up to 25 MB)

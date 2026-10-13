@@ -216,6 +216,7 @@ def evaluate_plan(client, plan_path: str, reference: Dict[str, Any]) -> Dict[str
             "voltage_drop_status": vd["status"],
             "voltage_drop_reason": vd.get("reason"),
             "voltage_drop_failing": [r["circuit_id"] for r in vd["circuits"] if r.get("status") == "fail"],
+            "cable_capacity_failing": [r["circuit_id"] for r in c["cable_capacity"]["circuits"] if r.get("status") == "fail"],
             "max_demand_a": md["total"]["total_demand_a"],
             "electrician_max_demand_a": reference.get("max_demand_a"),
             "max_demand_difference_percent": (
@@ -267,6 +268,8 @@ def render_markdown(reports: List[Dict[str, Any]], provider: str) -> str:
             lines.append(f"- Voltage drop: {calc['voltage_drop_status']}"
                          + (f" ({calc['voltage_drop_reason']})" if calc.get("voltage_drop_reason") else "")
                          + (f"; failing: {', '.join(calc['voltage_drop_failing'])}" if calc["voltage_drop_failing"] else ""))
+            lines.append(f"- Cable capacity (method B2, 30 C, not bunched): "
+                         + (f"failing: {', '.join(calc['cable_capacity_failing'])}" if calc["cable_capacity_failing"] else "all circuits pass"))
             lines.append(f"- Maximum demand: {calc['max_demand_a']} A"
                          + (f" vs electrician {calc['electrician_max_demand_a']} A ({calc['max_demand_difference_percent']:+}%)"
                             if calc.get("electrician_max_demand_a") else ""))

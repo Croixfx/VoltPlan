@@ -1,7 +1,8 @@
 # Electrical calculations: review pack for the electrician
 
 VoltPlan calculates **voltage drop per final circuit** and **maximum demand** for the main supply
-(`backend/app/services/electrical_calculations.py`, endpoint `GET /api/projects/{id}/calculations`).
+(`backend/app/services/electrical_calculations.py`, endpoint `GET /api/projects/{id}/calculations`), plus the
+**cable current-carrying capacity** check (section 3).
 
 These are preliminary aids. **Nothing here has been verified by a qualified electrician yet.**
 This document lists every formula, constant and assumption so you can confirm or correct them.
@@ -64,9 +65,9 @@ L = (|dx| + |dy|) x 1.10  +  (2.7 - height of board)  +  (2.7 - height of outlet
 
 ### Not checked
 
-Cable **current-carrying capacity** (installation method, grouping, thermal insulation, ambient temperature),
-protective-device discrimination, short-circuit / earth-fault loop impedance, RCD selectivity, three-phase balance of
-each circuit. ⚠ Please tell me which of these the client expects.
+Protective-device discrimination, short-circuit withstand, earth-fault loop impedance, RCD selectivity, three-phase
+balance of each circuit. (Cable current-carrying capacity is covered in section 3.) ⚠ Please tell me which of these
+the client expects.
 
 ### Worked examples (these are automated tests: `backend/tests/test_electrical_calculations.py`)
 
@@ -127,7 +128,94 @@ Total                                  = 62.14 A  = 14.3 kVA at 230 V   -> 63 A 
 
 ---
 
-## 3. Review checklist
+## 3. Cable current-carrying capacity
+
+Endpoint: `GET /api/projects/{id}/calculations?method=B2&ambient_c=30&grouped_circuits=1`
+(`cable_capacity` block). Unlike voltage drop it needs **no scale and no distribution board**: it only needs each
+circuit's cable size and protective device.
+
+### Check (IEC 60364-4-43, 5-52)
+
+```
+Ib <= In <= Iz          Iz = It x Ca x Cg
+```
+
+| Symbol | Meaning | Source |
+|---|---|---|
+| Ib | design current | as in section 1 (socket circuits: = In, an assumption) |
+| In | rating of the protective device | read from the circuit, e.g. `20A Type B MCB` → 20 A |
+| It | tabulated capacity of the cable | IEC 60364-5-52 Table B.52.2 (copper, PVC, two loaded conductors, 70 °C conductor, 30 °C ambient) |
+| Ca | ambient-temperature factor | Table B.52.14 (PVC) |
+| Cg | grouping factor | Table B.52.17 (circuits bunched in air / on a surface / embedded or enclosed) |
+
+For IEC 60898 miniature circuit-breakers (conventional tripping current 1.45 × In) the second condition
+I2 ≤ 1.45 × Iz is then also met. Status: `fail` if Ib > In or In > Iz; `marginal` if In is above 90 % of Iz; otherwise `pass`.
+For a failing circuit the tool suggests the smallest standard cable that passes, or a smaller device that fits.
+For every circuit it also reports `max_grouped_circuits`: how many circuits may share its route.
+
+### Table values used ⚠ please verify against the standard
+
+**Table B.52.2, amperes (copper, PVC, 2 loaded conductors, 30 °C)**
+
+| mm² | A2 | B2 (default) | C |
+|---|---:|---:|---:|
+| 1.5 | 14 | 16.5 | 19.5 |
+| 2.5 | 18.5 | 23 | 27 |
+| 4 | 25 | 30 | 36 |
+| 6 | 32 | 38 | 46 |
+| 10 | 43 | 52 | 63 |
+| 16 | 57 | 69 | 85 |
+| 25 | 75 | 90 | 112 |
+
+* Methods: **A2** multi-core cable in conduit in a thermally insulating wall; **B2** multi-core cable in conduit on a wall or
+  embedded in masonry (assumed for concealed wiring in masonry); **C** cable clipped direct to a surface.
+* I transcribed these from public web pages because I do not have the standard. **B2 and C rows agreed across two
+  independent sources. The A2 row came from one source** and differs from the values in older editions of the
+  table (13 / 17.5 / 23 / 29 / 39 / 52 / 68), so please confirm which edition Rwanda applies.
+* Only copper PVC cables up to 25 mm² are tabulated; anything else is reported as "not calculated".
+
+**Ambient factor Ca (Table B.52.14, PVC):** 30 °C → 1.00, 35 °C → 0.94, 40 °C → 0.87. These are the only values
+offered; 35 and 40 °C were cross-checked against a public source.
+
+**Grouping factor Cg (Table B.52.17):** 1 → 1.00, 2 → 0.80, 3 → 0.70, 4 → 0.65, 5 → 0.60, 6 → 0.57.
+⚠ **These were NOT cross-checked against any source in this work**; they are the commonly published values.
+More than 6 circuits is rejected rather than approximated.
+
+### Assumptions ⚠
+
+* Default installation: **method B2, 30 °C, circuits not bunched.** The plan does not show how cables are routed, so the
+  number of circuits sharing a conduit is unknown. The user can change method, ambient and bunching on the Calculations
+  screen; the result shows how many bunched circuits each cable tolerates.
+* Thermal insulation around cables is only covered through method A2. Not covered: buried cables, cables above 25 mm²,
+  three-phase circuits, harmonic currents, short-circuit withstand, earth-fault loop impedance.
+
+### What the default design shows (please review) ⚠
+
+With the circuit rules currently built into the generator, **the design only passes when circuits are not bunched**:
+
+| Circuit | Cable / device | Iz (B2, alone) | Used | With 2 circuits bunched (Iz × 0.80) |
+|---|---|---:|---:|---|
+| Socket radials | 2.5 mm² / 20 A | 23 A | 87 % | 18.4 A → **fail** (use 4 mm² or a 16 A device) |
+| Water heater | 2.5 mm² / 20 A | 23 A | 87 % | 18.4 A → **fail** |
+| Cooker | 6 mm² / 32 A | 38 A | 84 % | 30.4 A → **fail** (use 10 mm²) |
+| Lighting | 1.5 mm² / 10 A | 16.5 A | 61 % | 13.2 A → pass |
+| Air conditioner | 2.5 mm² / 16 A | 23 A | 70 % | 18.4 A → pass |
+| Detection / escape lighting | 1.5 mm² / 6 A | 16.5 A | 36 % | pass |
+
+This is a design-rule question for the electrician: should the generator default to 16 A devices or 4 mm² cable on
+radials, or is "2.5 mm² on 20 A, never bunched" acceptable in local practice?
+
+### Worked examples (automated tests: `backend/tests/test_cable_capacity.py`)
+
+**A.** 2.5 mm² on a 20 A device, method B2, alone: Iz = 23 × 1.00 × 1.00 = 23 A ≥ 20 A → pass (87 %).
+
+**B.** Same cable with one more circuit bunched: Iz = 23 × 0.80 = 18.4 A < 20 A → **fail**; 4 mm² (30 × 0.80 = 24 A) or a 16 A device fixes it.
+
+**C.** 1.5 mm² on 10 A at 40 °C with 6 circuits bunched: Iz = 16.5 × 0.87 × 0.57 = 8.18 A < 10 A → **fail**; 2.5 mm² gives 23 × 0.87 × 0.57 = 11.4 A → pass.
+
+---
+
+## 4. Review checklist
 
 Please tick, correct or comment on each line.
 
@@ -139,13 +227,17 @@ Please tick, correct or comment on each line.
 - [ ] Household diversity table (66 % / 100 %+40 % / cooker rule) is the one you apply
 - [ ] No diversity for non-residential is acceptable as a conservative default
 - [ ] Standard rating list for the main switch
-- [ ] Anything that is missing and must be calculated (cable ratings Iz, earth-fault loop, ...)
+- [ ] Table B.52.2 values and the A2 / B2 / C row choice (section 3); which edition applies
+- [ ] Grouping factors 1-6 circuits, and ambient factors 30 / 35 / 40 °C
+- [ ] Default "method B2, 30 °C, not bunched" is acceptable, and whether 2.5 mm² on 20 A radials / 6 mm² on 32 A is
+      acceptable when circuits are bunched
+- [ ] Anything that is missing and must be calculated (earth-fault loop, short-circuit withstand, ...)
 
 Reviewed by: ____________________  Registration no.: ____________  Date: ____________
 
 ---
 
-## 4. Findings from real plans
+## 5. Findings from real plans
 
 *(fill in after running `python -m tools.evaluate_plans`, see `backend/eval_plans/README.md`)*
 

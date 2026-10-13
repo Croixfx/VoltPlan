@@ -50,6 +50,8 @@ REFERENCES = [
     "(IEC 60364-5-52 Table G.57.1; BS 7671 Appendix 4 s.6.4).",
     "Diversity for household installations: IET On-Site Guide (BS 7671) Appendix 1, Table 1B. "
     "IEC 60364 gives no fixed factors; local utility rules (EUCL/REG) may differ.",
+    "Cable capacity: Iz = It x Ca x Cg with It from IEC 60364-5-52 Table B.52.2, Ca from Table B.52.14, Cg from "
+    "Table B.52.17; condition Ib <= In <= Iz (IEC 60364-4-43).",
 ]
 
 
@@ -135,7 +137,7 @@ def _base_assumptions(db: Optional[ElectricalPoint]) -> List[str]:
         "Socket circuits use the protective-device rating as design current; other circuits use connected load "
         f"(air conditioning at power factor {AC_POWER_FACTOR}).",
         f"Limits: {LIGHTING_LIMIT_PCT:.0f} % lighting and safety lighting, {OTHER_LIMIT_PCT:.0f} % everything else.",
-        "Cable current-carrying capacity (installation method, grouping, ambient temperature) is NOT checked.",
+        "Cable current-carrying capacity is checked separately (see cable_capacity).",
     ] + ([f"Distribution board located at the user-placed point '{db.id}' in '{db.room_name}'."] if db else [])
 
 
@@ -318,14 +320,179 @@ def maximum_demand(circuits: List[Circuit], points: List[ElectricalPoint], build
     }
 
 
+# ----------------------------------------------------------------------------
+# Cable current-carrying capacity
+# ----------------------------------------------------------------------------
+# IEC 60364-5-52:2009 Table B.52.2 - PVC insulation, copper, TWO loaded conductors, conductor 70 C,
+# ambient 30 C in air. Amperes. (Transcribed from public secondary sources, see docs/CALCULATION_REVIEW.md
+# section 3 for which rows were cross-checked. An electrician must verify them against the standard.)
+CAPACITY_TABLE_A: Dict[str, Dict[float, float]] = {
+    "A2": {1.5: 14.0, 2.5: 18.5, 4.0: 25.0, 6.0: 32.0, 10.0: 43.0, 16.0: 57.0, 25.0: 75.0},
+    "B2": {1.5: 16.5, 2.5: 23.0, 4.0: 30.0, 6.0: 38.0, 10.0: 52.0, 16.0: 69.0, 25.0: 90.0},
+    "C": {1.5: 19.5, 2.5: 27.0, 4.0: 36.0, 6.0: 46.0, 10.0: 63.0, 16.0: 85.0, 25.0: 112.0},
+}
+INSTALLATION_METHODS: Dict[str, str] = {
+    "A2": "multi-core cable in conduit in a thermally insulating wall",
+    "B2": "multi-core cable in conduit on a wall or embedded in masonry",
+    "C": "cable clipped direct to a wall or other surface",
+}
+DEFAULT_METHOD = "B2"
+# IEC 60364-5-52 Table B.52.14, PVC insulation. Only values cross-checked against a public source are offered.
+AMBIENT_FACTORS: Dict[int, float] = {30: 1.00, 35: 0.94, 40: 0.87}
+# IEC 60364-5-52 Table B.52.17, circuits bunched in air / on a surface / embedded or enclosed.
+GROUPING_FACTORS: Dict[int, float] = {1: 1.00, 2: 0.80, 3: 0.70, 4: 0.65, 5: 0.60, 6: 0.57}
+MCB_RATINGS_A = [6, 10, 13, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125]   # IEC 60898-1 preferred values
+CAPACITY_MARGINAL_FRACTION = 0.9    # device rating above 90 % of the cable capacity is flagged as marginal
+
+
+class CapacityOptions:
+    """Installation conditions that decide a cable's capacity. Validated on construction."""
+
+    def __init__(self, method: str = DEFAULT_METHOD, ambient_c: int = 30, grouped_circuits: int = 1):
+        if method not in CAPACITY_TABLE_A:
+            raise ValueError(f"Installation method '{method}' is not supported. Use one of: {', '.join(CAPACITY_TABLE_A)}.")
+        if ambient_c not in AMBIENT_FACTORS:
+            raise ValueError(f"Ambient temperature {ambient_c} C is not supported. Use one of: "
+                             f"{', '.join(str(t) for t in AMBIENT_FACTORS)} C.")
+        if grouped_circuits not in GROUPING_FACTORS:
+            raise ValueError(f"{grouped_circuits} grouped circuits is not supported. Use 1 to {max(GROUPING_FACTORS)}.")
+        self.method = method
+        self.ambient_c = ambient_c
+        self.grouped_circuits = grouped_circuits
+
+    @property
+    def ca(self) -> float:
+        return AMBIENT_FACTORS[self.ambient_c]
+
+    @property
+    def cg(self) -> float:
+        return GROUPING_FACTORS[self.grouped_circuits]
+
+
+def tabulated_capacity_a(method: str, section_mm2: float) -> Optional[float]:
+    return CAPACITY_TABLE_A[method].get(section_mm2)
+
+
+def _capacity_assumptions(opt: CapacityOptions) -> List[str]:
+    return [
+        f"Installation method {opt.method}: {INSTALLATION_METHODS[opt.method]}. Tabulated capacity It from "
+        "IEC 60364-5-52 Table B.52.2 (PVC, copper, two loaded conductors, 70 C conductor, 30 C ambient).",
+        f"Ambient {opt.ambient_c} C (Ca = {opt.ca}); {opt.grouped_circuits} circuit(s) bunched together "
+        f"(Cg = {opt.cg}). Iz = It x Ca x Cg.",
+        "Each circuit is checked against Ib <= In <= Iz (IEC 60364-4-43). For miniature circuit-breakers to IEC 60898 "
+        "the 1.45 x In operating condition is then also within 1.45 x Iz.",
+        "The number of circuits bunched together depends on how the cables are routed, which the plan does not "
+        "show. 'max_grouped_circuits' gives the largest number each circuit tolerates.",
+        "Not checked: thermal insulation around cables (except method A2), buried cables, cables above 25 mm2, "
+        "three-phase circuits, harmonic currents, short-circuit withstand, cables sharing a duct with heat sources.",
+    ]
+
+
+def cable_capacity(circuits: List[Circuit], points: List[ElectricalPoint], opt: Optional[CapacityOptions] = None) -> Dict:
+    opt = opt or CapacityOptions()
+    by_circuit: Dict[str, List[ElectricalPoint]] = {}
+    for p in points:
+        if p.circuit_id:
+            by_circuit.setdefault(p.circuit_id, []).append(p)
+
+    rows = []
+    for c in circuits:
+        if not _is_applicable(c):
+            continue
+        row: Dict = {"circuit_id": c.id, "name": c.name, "circuit_type": c.circuit_type, "phase": c.phase}
+        section = parse_section_mm2(c.cable)
+        in_a = parse_rating_a(c.protection)
+        if section is None:
+            rows.append({**row, "status": "not_calculated", "reason": f"Cable size '{c.cable}' could not be read."})
+            continue
+        it = tabulated_capacity_a(opt.method, section)
+        if it is None:
+            rows.append({**row, "status": "not_calculated",
+                         "reason": f"No tabulated capacity for {section:g} mm2 with method {opt.method}."})
+            continue
+
+        ib, basis = design_current_a(c, by_circuit.get(c.id, []))
+        iz = it * opt.ca * opt.cg
+        utilisation = in_a / iz * 100.0
+        problems = []
+        if ib > in_a + 1e-9:
+            problems.append(f"design current {ib:.1f} A exceeds the protective device rating {in_a:g} A")
+        if in_a > iz + 1e-9:
+            problems.append(f"protective device {in_a:g} A exceeds the cable capacity {iz:.1f} A")
+        status = "fail" if problems else ("marginal" if in_a > CAPACITY_MARGINAL_FRACTION * iz else "pass")
+
+        max_grouped = 0
+        for n in sorted(GROUPING_FACTORS):
+            if it * opt.ca * GROUPING_FACTORS[n] >= in_a:
+                max_grouped = n
+
+        recommended_cable = None
+        reduce_device_to = None
+        if status == "fail":
+            needed = max(in_a, ib)
+            for s in STANDARD_SECTIONS_MM2:
+                cap = tabulated_capacity_a(opt.method, s)
+                if cap is not None and cap * opt.ca * opt.cg >= needed:
+                    recommended_cable = s
+                    break
+            # For socket circuits Ib is only the assumed device rating, so a smaller device is a valid way to
+            # limit the circuit; for every other circuit the device must still carry the real design current.
+            floor_a = 0.0 if basis.startswith("protective device rating") else ib
+            fitting = [r for r in MCB_RATINGS_A if floor_a - 1e-9 <= r <= iz + 1e-9]
+            reduce_device_to = max(fitting) if fitting and max(fitting) < in_a else None
+
+        rows.append({
+            **row,
+            "status": status,
+            "reason": "; ".join(problems) if problems else None,
+            "cable_mm2": section,
+            "design_current_a": _round(ib),
+            "design_current_basis": basis,
+            "protective_device_a": in_a,
+            "tabulated_capacity_a": it,
+            "capacity_a": _round(iz),
+            "utilisation_percent": _round(utilisation, 1),
+            "max_grouped_circuits": max_grouped,
+            "recommended_cable_mm2": recommended_cable,
+            "reduce_device_to_a": reduce_device_to,
+        })
+
+    checked = [r for r in rows if r["status"] != "not_calculated"]
+    return {
+        "status": "calculated",
+        "options": {
+            "method": opt.method,
+            "method_description": INSTALLATION_METHODS[opt.method],
+            "ambient_c": opt.ambient_c,
+            "ambient_factor": opt.ca,
+            "grouped_circuits": opt.grouped_circuits,
+            "grouping_factor": opt.cg,
+            "available": {
+                "methods": list(CAPACITY_TABLE_A),
+                "ambient_c": list(AMBIENT_FACTORS),
+                "grouped_circuits": list(GROUPING_FACTORS),
+            },
+        },
+        "assumptions": _capacity_assumptions(opt),
+        "circuits": rows,
+        "summary": {
+            "circuits_checked": len(checked),
+            "failing": sum(1 for r in checked if r["status"] == "fail"),
+            "marginal": sum(1 for r in checked if r["status"] == "marginal"),
+        },
+    }
+
+
 def calculate(
     circuits: List[Circuit],
     points: List[ElectricalPoint],
     building_type: str,
     scale_verified: bool,
+    capacity_options: Optional[CapacityOptions] = None,
 ) -> Dict:
     return {
         "voltage_drop": voltage_drop(circuits, points, scale_verified),
+        "cable_capacity": cable_capacity(circuits, points, capacity_options),
         "max_demand": maximum_demand(circuits, points, building_type),
         "references": REFERENCES,
         "disclaimer": DISCLAIMER,
