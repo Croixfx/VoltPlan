@@ -50,9 +50,11 @@ services:
       # Required: shared key the mobile app sends as X-API-Key. Enter it in the dashboard (never commit it).
       - key: API_KEY
         sync: false
-      # mock = fake demo rooms for every upload. Use gemini or openai (and the matching key) for real plans.
+      # mock = fake demo rooms for every upload; gemini / openai (with the matching key) read real plans.
+      # Deliberately NOT given a value here: Render re-applies blueprint values on every sync, which would
+      # silently switch a deployment back to mock data. Set it in the dashboard (Environment).
       - key: AI_PROVIDER
-        value: mock
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
       - key: OPENAI_API_KEY

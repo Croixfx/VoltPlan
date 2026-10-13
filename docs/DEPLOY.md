@@ -32,7 +32,9 @@ Keep it in a password manager. Do not commit it, paste it into chats or put it i
 5. Wait for the deploy, then open `https://<service>.onrender.com/api/health`. Expected:
    `{"status":"ok", ... "environment":"production", "ai_provider":"mock" ...}`.
 
-`AI_PROVIDER=mock` returns the same demo rooms for every upload. To read real plans set
+`AI_PROVIDER` is not given a value in `render.yaml` (Render would re-apply it on every sync and silently switch you back
+to mock data); the Blueprint screen asks for it (`mock`, `gemini` or `openai`) and it is edited in the dashboard afterwards.
+`mock` returns the same demo rooms for every upload. To read real plans set
 `AI_PROVIDER=gemini` (or `openai`) **and** the matching key in the service's environment, then redeploy.
 
 ### Free-tier behaviour to expect
