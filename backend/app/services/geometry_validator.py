@@ -25,6 +25,7 @@ BOUNDS_MARGIN = 0.005          # tolerance for bounds slightly outside [0, 1]
 OVERLAP_ERROR_RATIO = 0.03     # overlap > 3% of the smaller room is an error
 OVERLAP_MIN_AREA = 0.0002      # ignore hairline overlaps below this normalized area
 DOOR_WALL_TOLERANCE = 0.02     # door centre must be this close to a room wall
+FLOAT_EPS = 1e-9               # a value exactly on a limit must not fail because of floating-point rounding
 MIN_ROOM_AREA_NORM = 0.001     # unscaled: smaller than 0.1% of the plan is not a room
 WARN_ROOM_AREA_NORM = 0.004
 # --- thresholds (metres, only when the scale is calibrated) -----------------
@@ -264,16 +265,17 @@ class GeometryValidator:
                     wall = f.wall
                 else:
                     wall, dist = nearest_wall(room.bounds, pos)
-                if dist > DOOR_WALL_TOLERANCE:
+                if dist > DOOR_WALL_TOLERANCE + FLOAT_EPS:
                     where = f"the {f.wall} wall" if f.wall in WALLS else "any wall"
                     issues.append(GeometryIssue(
                         code="door_not_on_wall", severity=ERROR, entity_ids=[fid, room.id],
                         message=f"A door in '{room.name}' is not on {where} of the room "
-                                f"(it is {dist * 100:.1f}% of the plan away from the wall).",
+                                f"(it is {dist * 100:.1f}% of the plan away from the wall; up to "
+                                f"{DOOR_WALL_TOLERANCE * 100:.0f}% is allowed).",
                     ))
                     continue
                 for label, pt in (("hinge", f.hinge_point), ("strike", f.strike_point)):
-                    if pt and len(pt) >= 2 and distance_to_segment(pt, *wall_segment(room.bounds, wall)) > DOOR_WALL_TOLERANCE * 1.5:
+                    if pt and len(pt) >= 2 and distance_to_segment(pt, *wall_segment(room.bounds, wall)) > DOOR_WALL_TOLERANCE * 1.5 + FLOAT_EPS:
                         issues.append(GeometryIssue(
                             code=f"door_{label}_off_wall", severity=WARNING, entity_ids=[fid, room.id],
                             message=f"The {label} of a door in '{room.name}' is not on the same wall as the door.",
@@ -289,8 +291,8 @@ class GeometryValidator:
             elif f.bounds and _valid_bounds(f.bounds) and room is not None:
                 cx, cy = (f.bounds[0] + f.bounds[2]) / 2, (f.bounds[1] + f.bounds[3]) / 2
                 rb = room.bounds
-                if not (rb[0] - DOOR_WALL_TOLERANCE <= cx <= rb[2] + DOOR_WALL_TOLERANCE
-                        and rb[1] - DOOR_WALL_TOLERANCE <= cy <= rb[3] + DOOR_WALL_TOLERANCE):
+                slack = DOOR_WALL_TOLERANCE + FLOAT_EPS
+                if not (rb[0] - slack <= cx <= rb[2] + slack and rb[1] - slack <= cy <= rb[3] + slack):
                     issues.append(GeometryIssue(
                         code="fixture_outside_room", severity=WARNING, entity_ids=[fid, room.id],
                         message=f"The {f.type} assigned to '{room.name}' lies outside that room.",

@@ -151,3 +151,25 @@ def test_summary_lists_errors_only():
     res = GeometryValidator.validate([room("a", "A", [0.1, 0.1, 0.5, 0.5]), room("b", "B", [0.3, 0.1, 0.9, 0.5])], [])
     text = summarize(res)
     assert text.startswith("Geometry check failed with 1 error(s)") and "overlap" in text
+
+
+def test_a_door_exactly_at_the_limit_is_not_rejected_by_rounding():
+    # Real case from a Gemini reading: door at x=0.32 on a wall at x=0.34 is "2.0% away", exactly the limit.
+    # 0.34 - 0.32 is 0.020000000000000018 in floating point, which used to push it over.
+    bedroom = room("r1", "Bedroom", [0.02, 0.14, 0.34, 0.52])
+    at_limit = door("Bedroom", [0.32, 0.38], "east")
+    assert not has_errors(GeometryValidator.validate([bedroom], [at_limit]))
+    # clearly beyond the limit is still rejected, and the message says what is allowed
+    beyond = door("Bedroom", [0.31, 0.38], "east")
+    res = GeometryValidator.validate([bedroom], [beyond])
+    msg = next(i.message for i in res if i.code == "door_not_on_wall")
+    assert "3.0% of the plan away" in msg and "up to 2% is allowed" in msg
+
+
+def test_a_door_in_the_middle_of_a_room_is_rejected_even_if_it_names_a_wall():
+    # Real case: an entrance placed mid-foyer but labelled "west wall" (13% away)
+    foyer = room("r7", "Entrance Foyer", [0.02, 0.52, 0.26, 0.81])
+    entrance = ArchitecturalFeature(type="entrance", room="Entrance Foyer", confidence=0.9,
+                                    door_position=[0.15, 0.66], wall="west")
+    res = GeometryValidator.validate([foyer], [entrance])
+    assert "door_not_on_wall" in codes(res, "error")
