@@ -7,6 +7,7 @@ import '../../shared/models/project.dart';
 import '../../shared/models/circuit.dart';
 import '../../shared/state/app_state.dart';
 import '../boq/boq_screen.dart';
+import 'calculations_screen.dart';
 
 class CircuitsScreen extends StatelessWidget {
   final AppState state;
@@ -26,6 +27,18 @@ class CircuitsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Circuits Schedule'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.calculate_outlined),
+            tooltip: 'Voltage drop & maximum demand',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CalculationsScreen(state: state, project: project),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.inventory_2_outlined),
             tooltip: 'View BOQ',

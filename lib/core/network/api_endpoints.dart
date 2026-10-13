@@ -15,6 +15,8 @@ class ApiEndpoints {
       '$baseUrl/projects/$id/doors/$doorId';
   static String projectRegenerate(String id) =>
       '$baseUrl/projects/$id/regenerate';
+  static String projectCalculations(String id) =>
+      '$baseUrl/projects/$id/calculations';
   static String projectScale(String id) => '$baseUrl/projects/$id/scale';
   static String get health => '$baseUrl/health';
   static String get projects => '$baseUrl/projects';
