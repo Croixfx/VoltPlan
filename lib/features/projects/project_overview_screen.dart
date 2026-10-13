@@ -6,6 +6,7 @@ import '../../core/widgets/section_header.dart';
 import '../../core/widgets/status_badge.dart';
 import '../../shared/models/project.dart';
 import '../../shared/state/app_state.dart';
+import '../floor_plan/scale_calibration_screen.dart';
 import '../floor_plan/upload_plan_screen.dart';
 import '../floor_plan/widgets/plan_drawing_viewer.dart';
 import '../analysis/ai_analysis_screen.dart';
@@ -28,6 +29,13 @@ class ProjectOverviewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: state,
+      builder: (context, _) => _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentProject = state.projects.firstWhere(
       (p) => p.id == project.id,
@@ -501,6 +509,71 @@ class ProjectOverviewScreen extends StatelessWidget {
                   ),
               ],
             ),
+          ),
+          _buildScaleRow(context, project, isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScaleRow(BuildContext context, Project project, bool isDark) {
+    final calibrated = project.isScaleCalibrated;
+    final muted = isDark ? AppColors.textMutedDark : AppColors.textMutedLight;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            calibrated ? Icons.straighten : Icons.warning_amber_rounded,
+            size: 18,
+            color: calibrated ? AppColors.primaryBlue : Colors.orange,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              calibrated
+                  ? 'Scale calibrated • 1 px = ${project.scaleMmPerPixel!.toStringAsFixed(1)} mm'
+                  : 'Scale not calibrated • positions are estimates',
+              style: TextStyle(fontSize: 13, color: muted),
+            ),
+          ),
+          const SizedBox(width: 8),
+          AppButton(
+            label: calibrated ? 'Recalibrate' : 'Calibrate Scale',
+            icon: Icons.straighten,
+            height: 34,
+            variant: AppButtonVariant.secondary,
+            onPressed: () async {
+              final saved = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ScaleCalibrationScreen(
+                    state: state,
+                    project: project,
+                    returnToCaller: true,
+                  ),
+                ),
+              );
+              if (saved == true && context.mounted && project.roomsCount > 0) {
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Scale saved. Re-run the analysis to apply it to existing results.',
+                      ),
+                    ),
+                  );
+              }
+            },
           ),
         ],
       ),

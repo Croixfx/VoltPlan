@@ -29,10 +29,15 @@ class ScaleCalibrationScreen extends StatefulWidget {
   final AppState state;
   final Project project;
 
+  /// When true (opened from an existing project) the screen pops with `true`
+  /// after saving instead of continuing into AI analysis.
+  final bool returnToCaller;
+
   const ScaleCalibrationScreen({
     super.key,
     required this.state,
     required this.project,
+    this.returnToCaller = false,
   });
 
   @override
@@ -105,7 +110,11 @@ class _ScaleCalibrationScreenState extends State<ScaleCalibrationScreen> {
       _pointB != null &&
       parseDistanceMm(_distanceController.text, _unit) != null;
 
-  void _continueToAnalysis() {
+  void _continueToAnalysis({bool saved = false}) {
+    if (widget.returnToCaller) {
+      Navigator.pop(context, saved);
+      return;
+    }
     final project = widget.state.selectedProject ?? widget.project;
     Navigator.pushReplacement(
       context,
@@ -140,7 +149,7 @@ class _ScaleCalibrationScreenState extends State<ScaleCalibrationScreen> {
       return;
     }
     setState(() => _isSaving = false);
-    _continueToAnalysis();
+    _continueToAnalysis(saved: true);
   }
 
   @override
@@ -161,7 +170,7 @@ class _ScaleCalibrationScreenState extends State<ScaleCalibrationScreen> {
         actions: [
           TextButton(
             onPressed: _isSaving ? null : _continueToAnalysis,
-            child: const Text('Skip'),
+            child: Text(widget.returnToCaller ? 'Cancel' : 'Skip'),
           ),
         ],
       ),
@@ -231,7 +240,9 @@ class _ScaleCalibrationScreenState extends State<ScaleCalibrationScreen> {
                   ],
                   const SizedBox(height: 12),
                   AppButton(
-                    label: 'Save Scale & Continue',
+                    label: widget.returnToCaller
+                        ? 'Save Scale'
+                        : 'Save Scale & Continue',
                     icon: Icons.straighten,
                     isLoading: _isSaving,
                     onPressed: _canSave ? _save : null,
