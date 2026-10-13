@@ -84,6 +84,11 @@ pytest -v
 - `PATCH /api/projects/{id}/points/{point_id}` — Move a point / change quantity (marks it manual)
 - `DELETE /api/projects/{id}/points/{point_id}` — Delete a point. All three regenerate circuits, BOQ and cost, and return the full analysis.
   Manual points are kept when the analysis is re-run.
+- `GET /api/projects/{id}/geometry` — Detected / corrected rooms and doors with the geometry-check results
+- `POST|PATCH|DELETE /api/projects/{id}/rooms[/{room_id}]` — Add, rename, reshape or delete rooms (doors stay on their wall)
+- `POST|PATCH|DELETE /api/projects/{id}/doors[/{door_id}]` — Add, move (wall + position), flip or delete doors
+- `POST /api/projects/{id}/regenerate` — Rebuild equipment, circuits, BOQ and cost from the stored (corrected) rooms/doors. Runs the geometry checks first and returns 422 with the issue list if any fail; the previous design is left untouched.
+- `POST /api/projects/{id}/analyze?reset_geometry=true` — Re-read the plan with AI. Without the flag this returns 409 if the project has manual room/door corrections, so they are never discarded silently.
 - `GET /api/projects` — List projects (with search filter)
 - `GET /api/projects/{id}` — Get project by ID
 - `POST /api/projects/{id}/plan` — Upload architectural plan (PDF/PNG/JPG up to 25 MB)

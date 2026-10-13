@@ -6,6 +6,7 @@ import '../../core/widgets/section_header.dart';
 import '../../core/widgets/status_badge.dart';
 import '../../shared/models/project.dart';
 import '../../shared/state/app_state.dart';
+import '../floor_plan/geometry_editor_screen.dart';
 import '../floor_plan/scale_calibration_screen.dart';
 import '../floor_plan/upload_plan_screen.dart';
 import '../floor_plan/widgets/plan_drawing_viewer.dart';
@@ -511,6 +512,7 @@ class ProjectOverviewScreen extends StatelessWidget {
             ),
           ),
           _buildScaleRow(context, project, isDark),
+          _buildGeometryRow(context, project, isDark),
         ],
       ),
     );
@@ -574,6 +576,44 @@ class ProjectOverviewScreen extends StatelessWidget {
                   );
               }
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGeometryRow(BuildContext context, Project project, bool isDark) {
+    final muted = isDark ? AppColors.textMutedDark : AppColors.textMutedLight;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.meeting_room_outlined, size: 18, color: AppColors.primaryBlue),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Fix room shapes, names and door positions, then regenerate the equipment',
+              style: TextStyle(fontSize: 13, color: muted),
+            ),
+          ),
+          const SizedBox(width: 8),
+          AppButton(
+            key: const Key('open-geometry-editor'),
+            label: 'Rooms & Doors',
+            icon: Icons.edit_location_alt_outlined,
+            height: 34,
+            variant: AppButtonVariant.secondary,
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => GeometryEditorScreen(state: state, project: project),
+              ),
+            ),
           ),
         ],
       ),

@@ -6,6 +6,15 @@ class ApiEndpoints {
   static String projectPoints(String id) => '$baseUrl/projects/$id/points';
   static String projectPoint(String id, String pointId) =>
       '$baseUrl/projects/$id/points/$pointId';
+  static String projectGeometry(String id) => '$baseUrl/projects/$id/geometry';
+  static String projectRooms(String id) => '$baseUrl/projects/$id/rooms';
+  static String projectRoom(String id, String roomId) =>
+      '$baseUrl/projects/$id/rooms/$roomId';
+  static String projectDoors(String id) => '$baseUrl/projects/$id/doors';
+  static String projectDoor(String id, String doorId) =>
+      '$baseUrl/projects/$id/doors/$doorId';
+  static String projectRegenerate(String id) =>
+      '$baseUrl/projects/$id/regenerate';
   static String projectScale(String id) => '$baseUrl/projects/$id/scale';
   static String get health => '$baseUrl/health';
   static String get projects => '$baseUrl/projects';

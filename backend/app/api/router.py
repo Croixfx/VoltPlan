@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.routes import health, projects, uploads, analysis, scale, equipment, points
+from app.api.routes import health, projects, uploads, analysis, scale, equipment, points, geometry
 
 api_router = APIRouter(prefix="/api")
 
@@ -10,3 +10,4 @@ api_router.include_router(analysis.router)
 api_router.include_router(scale.router)
 api_router.include_router(equipment.router)
 api_router.include_router(points.router)
+api_router.include_router(geometry.router)

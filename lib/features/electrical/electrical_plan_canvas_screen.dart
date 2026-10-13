@@ -7,6 +7,7 @@ import '../../core/widgets/status_badge.dart';
 import '../../shared/models/project.dart';
 import '../../shared/models/electrical_point.dart';
 import '../../shared/state/app_state.dart';
+import '../floor_plan/geometry_editor_screen.dart';
 import '../floor_plan/widgets/floor_plan_painter.dart';
 import '../floor_plan/widgets/plan_drawing_viewer.dart';
 import 'circuits_screen.dart';
@@ -473,6 +474,16 @@ class _ElectricalPlanCanvasScreenState
       appBar: AppBar(
         title: const Text('Electrical Plan'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.meeting_room_outlined),
+            tooltip: 'Fix rooms & doors',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => GeometryEditorScreen(state: widget.state, project: widget.project),
+              ),
+            ),
+          ),
           IconButton(
             icon: Icon(_editMode ? Icons.edit_off_outlined : Icons.edit_outlined),
             tooltip: _editMode ? 'Exit edit mode' : 'Edit equipment',

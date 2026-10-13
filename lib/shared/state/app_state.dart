@@ -6,6 +6,7 @@ import '../../core/network/api_exceptions.dart';
 import '../../features/analysis/data/analysis_repository.dart';
 import '../../features/boq/data/boq_repository.dart';
 import '../../features/electrical/data/point_repository.dart';
+import '../../features/floor_plan/data/geometry_repository.dart';
 import '../../features/projects/data/project_repository.dart';
 import '../mock_data/mock_data.dart';
 import '../models/analysis_result.dart';
@@ -15,13 +16,15 @@ import '../models/circuit.dart';
 import '../models/cost_estimate.dart';
 import '../models/electrical_point.dart';
 import '../models/equipment_option.dart';
+import '../models/geometry.dart';
 import '../models/project.dart';
 import '../models/room.dart';
 import '../models/wiring_arc.dart';
 
 class AppState extends ChangeNotifier {
-  AppState({PointRepository? pointRepository})
-      : _pointRepo = pointRepository ?? PointRepository() {
+  AppState({PointRepository? pointRepository, GeometryRepository? geometryRepository})
+      : _pointRepo = pointRepository ?? PointRepository(),
+        _geometryRepo = geometryRepository ?? GeometryRepository() {
     _init();
   }
 
@@ -29,6 +32,7 @@ class AppState extends ChangeNotifier {
   final ProjectRepository _projectRepo = ProjectRepository();
   final AnalysisRepository _analysisRepo = AnalysisRepository();
   final PointRepository _pointRepo;
+  final GeometryRepository _geometryRepo;
   final BoqRepository _boqRepo = BoqRepository();
 
   ThemeMode _themeMode = ThemeMode.light;
@@ -664,6 +668,39 @@ class AppState extends ChangeNotifier {
 
     _recomputeWiringArcs();
     notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------
+  // Room & door editing, regeneration, calculations (backend is the source of truth)
+  // ---------------------------------------------------------------------
+  GeometryRepository get geometryRepository => _geometryRepo;
+
+  /// True after rooms / doors were corrected but the equipment has not been regenerated yet.
+  bool _geometryNeedsRegeneration = false;
+  bool get geometryNeedsRegeneration => _geometryNeedsRegeneration;
+
+  void noteGeometry(GeometryState geometry) {
+    if (_geometryNeedsRegeneration != geometry.needsRegeneration) {
+      _geometryNeedsRegeneration = geometry.needsRegeneration;
+      notifyListeners();
+    }
+  }
+
+  /// Rebuilds equipment from the corrected rooms / doors. Returns null on success,
+  /// otherwise the backend's reason (e.g. the failed geometry checks).
+  Future<String?> regenerateDesign(String projectId) async {
+    final blocker = _editBlocker(projectId);
+    if (blocker != null) return blocker;
+    try {
+      _applyEditedAnalysis(await _geometryRepo.regenerate(projectId));
+      _geometryNeedsRegeneration = false;
+      notifyListeners();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (e) {
+      return e.toString();
+    }
   }
 
   // ---------------------------------------------------------------------
