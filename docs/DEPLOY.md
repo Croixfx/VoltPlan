@@ -58,6 +58,16 @@ Same image, same variables: `DATABASE_URL` (Postgres), `API_KEY`, `APP_ENV=produ
 `AI_PROVIDER`, optional provider keys, and a persistent volume mounted at `/app/uploads`. The container listens on `$PORT`
 (default 8000) and exposes `/api/health` for health checks. Put it behind HTTPS (hosts do this for you).
 
+### One-click check
+
+```powershell
+.\scripts\check_backend.ps1          # alive? locked? key works? AI provider ready?
+.\scripts\check_backend.ps1 -Full    # also runs one real plan analysis (one AI call) and deletes it
+```
+
+It finds your key in `$env:VOLTPLAN_API_KEY` or `~\voltplan_api_key.txt`, never prints it, waits for a sleeping free server
+to wake up, and exits with code 1 if anything fails. Use `-ApiUrl http://127.0.0.1:8000/api` for a local backend.
+
 ### Verify protection from outside
 
 ```powershell
