@@ -78,6 +78,27 @@ class ProjectRepository {
     return Project.fromJson(data as Map<String, dynamic>);
   }
 
+  /// Calibrates plan scale from two points (image ratios 0-1) and the real
+  /// distance between them in millimetres. Returns the resulting mm/pixel.
+  Future<double> calibrateScale({
+    required String projectId,
+    required double ax,
+    required double ay,
+    required double bx,
+    required double by,
+    required double realDistanceMm,
+  }) async {
+    final data = await _client.put(
+      ApiEndpoints.projectScale(projectId),
+      body: {
+        'point_a': {'x_ratio': ax, 'y_ratio': ay},
+        'point_b': {'x_ratio': bx, 'y_ratio': by},
+        'real_distance_mm': realDistanceMm,
+      },
+    );
+    return (data['scale_mm_per_pixel'] as num).toDouble();
+  }
+
   Future<void> deleteProject(String projectId) async {
     await _client.delete(ApiEndpoints.project(projectId));
   }

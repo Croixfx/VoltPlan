@@ -5,7 +5,9 @@ from fastapi import HTTPException
 from app.core.logging import logger
 from app.models.project import Project
 from app.models.analysis import Analysis
-from app.services.vision_service import VisionService
+from app.core.config import settings
+from app.schemas.canonical_geometry import ScaleStatus
+from app.services.vision_service import VisionService, VisionProviderError
 from app.services.electrical_engine import ElectricalEngine
 from app.services.circuit_engine import CircuitEngine
 from app.services.boq_engine import BoqEngine
@@ -65,7 +67,11 @@ class PlanAnalysisService:
             analysis.rooms_data = [r.model_dump() for r in vision_result.rooms]
             analysis.architectural_features_data = [f.model_dump() for f in vision_result.architectural_features]
             analysis.observations = vision_result.observations
-            analysis.warnings = vision_result.warnings
+            analysis.warnings = list(vision_result.warnings)
+            if settings.AI_PROVIDER.lower() == "mock":
+                analysis.warnings.append(
+                    "DEMO DATA: AI_PROVIDER is 'mock', so rooms and fixtures are NOT read from the uploaded drawing."
+                )
             db.commit()
 
             # Step 2.5: Canonical Building Geometry Model (Phase 1)
@@ -86,8 +92,9 @@ class PlanAnalysisService:
                 image_path=analysis_image_path,
                 pixel_width=img_w,
                 pixel_height=img_h,
-                scale_mm_per_pixel=None,
-                is_scale_verified=False,
+                scale_mm_per_pixel=project.scale_mm_per_pixel,
+                is_scale_verified=project.is_scale_calibrated,
+                scale_status=ScaleStatus.USER_CALIBRATED if project.is_scale_calibrated else ScaleStatus.UNSCALED,
                 building_type=project.building_type,
                 standard_name=project.standard,
                 source_file_name=project.floor_plan_name or "floor_plan.png",
@@ -97,6 +104,10 @@ class PlanAnalysisService:
                 scale_warn = "Plan scale is uncalibrated. Physical coordinates and areas are heuristic architectural estimates."
                 if scale_warn not in analysis.warnings:
                     analysis.warnings.append(scale_warn)
+            if canonical_plan.provenance.unresolved_geometry:
+                for unres in canonical_plan.provenance.unresolved_geometry:
+                    if unres not in analysis.warnings:
+                        analysis.warnings.append(unres)
             db.commit()
 
             # Step 3: Deterministic Electrical Engineering Engine
@@ -110,6 +121,7 @@ class PlanAnalysisService:
                 building_type=project.building_type,
                 standard_name=project.standard,
                 image_path=analysis_image_path,
+                canonical_plan=canonical_plan,
             )
 
             # Step 4: Circuit Schedule Engine & Wiring Arcs
@@ -154,6 +166,14 @@ class PlanAnalysisService:
 
             logger.info(f"[{project_id}] End-to-end analysis pipeline completed successfully.")
             return analysis
+
+        except VisionProviderError as e:
+            logger.error(f"[{project_id}] Vision provider failed: {e}")
+            analysis.status = "failed"
+            analysis.error_message = str(e)
+            project.status = "failed"
+            db.commit()
+            raise HTTPException(status_code=502, detail=f"AI vision provider error: {e}")
 
         except Exception as e:
             logger.error(f"[{project_id}] Analysis pipeline failed: {e}", exc_info=True)

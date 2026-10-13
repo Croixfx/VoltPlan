@@ -9,6 +9,7 @@ import 'package:voltplan/app/theme.dart';
 import 'package:voltplan/core/constants/app_colors.dart';
 import 'package:voltplan/core/widgets/app_button.dart';
 import 'package:voltplan/core/widgets/metric_card.dart';
+import 'package:voltplan/features/floor_plan/scale_calibration_screen.dart';
 import 'package:voltplan/features/floor_plan/upload_plan_screen.dart';
 import 'package:voltplan/features/analysis/ai_analysis_screen.dart';
 import 'package:voltplan/features/projects/create_project_screen.dart';
@@ -97,7 +98,8 @@ void main() {
 
       // Verify Dashboard elements
       expect(find.text('Good morning, Eng. Patrick Mugabo'), findsOneWidget);
-      expect(find.text('+ New Project'), findsOneWidget);
+      expect(find.text('Electrical Engine'), findsOneWidget);
+      expect(find.text('New Project'), findsOneWidget);
       expect(find.text('Recent Projects'), findsOneWidget);
       expect(find.text('Modern Family House'), findsOneWidget);
     });
@@ -117,6 +119,40 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('Recent Projects'), findsOneWidget);
       expect(find.byType(MetricCard), findsNothing);
+    });
+
+    testWidgets('Analysis plan preview expands with the available screen', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(900, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final state = AppState();
+      final project = state.projects.first;
+      final analysis = state.runAnalysisSimulation(project.id);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: AiAnalysisScreen(state: state, project: project),
+        ),
+      );
+      await tester.pump();
+
+      final previewFinder = find.byKey(const ValueKey('analysis-plan-preview'));
+      final mobilePreviewHeight = tester.getSize(previewFinder).height;
+
+      tester.view.physicalSize = const Size(1365, 768);
+      await tester.pump();
+
+      final desktopPreviewHeight = tester.getSize(previewFinder).height;
+      expect(desktopPreviewHeight, greaterThan(mobilePreviewHeight));
+
+      await tester.pump(const Duration(seconds: 3));
+      await analysis;
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets(
@@ -418,15 +454,23 @@ void main() {
         // Tap Upload from Device
         await tester.tap(find.text('Upload from Device'));
         await tester.pump(); // Trigger setState loading
-        await tester.pump(const Duration(milliseconds: 400)); // Complete upload delay
+        await tester.pump(
+          const Duration(milliseconds: 400),
+        ); // Complete upload delay
         await tester.pump(); // Route push
         await tester.pump(const Duration(milliseconds: 300)); // Transition
 
         expect(fakePicker.pickFileCallCount, 1);
-        final updatedProject = state.projects.firstWhere((p) => p.id == project.id);
+        final updatedProject = state.projects.firstWhere(
+          (p) => p.id == project.id,
+        );
         expect(updatedProject.floorPlanName, 'Custom_Villa_Design.png');
         expect(updatedProject.floorPlanBytes, testBytes);
-        // Should have navigated to AiAnalysisScreen
+        // Upload leads to scale calibration first; skipping continues to analysis
+        expect(find.byType(ScaleCalibrationScreen), findsOneWidget);
+        await tester.tap(find.text('Skip'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
         expect(find.byType(AiAnalysisScreen), findsOneWidget);
 
         // Advance simulation timers so no pending timers remain
@@ -464,45 +508,44 @@ void main() {
       },
     );
 
-    testWidgets(
-      'UploadPlanScreen selects sample drawing directly',
-      (WidgetTester tester) async {
-        final state = AppState();
-        final project = state.createProject(
-          name: 'Sample Project',
-          client: 'Client',
-          buildingType: 'Residential',
-          location: 'Kigali',
-          standard: 'RS IEC 60364',
-        );
+    testWidgets('UploadPlanScreen selects sample drawing directly', (
+      WidgetTester tester,
+    ) async {
+      final state = AppState();
+      final project = state.createProject(
+        name: 'Sample Project',
+        client: 'Client',
+        buildingType: 'Residential',
+        location: 'Kigali',
+        standard: 'RS IEC 60364',
+      );
 
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: AppTheme.light(),
-            home: UploadPlanScreen(state: state, project: project),
-          ),
-        );
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: UploadPlanScreen(state: state, project: project),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        // Ensure first sample plan's Select button is visible and tap it
-        final selectButtons = find.widgetWithText(AppButton, 'Select');
-        expect(selectButtons, findsWidgets);
+      // Ensure first sample plan's Select button is visible and tap it
+      final selectButtons = find.widgetWithText(AppButton, 'Select');
+      expect(selectButtons, findsWidgets);
 
-        await tester.ensureVisible(selectButtons.first);
-        await tester.pumpAndSettle();
+      await tester.ensureVisible(selectButtons.first);
+      await tester.pumpAndSettle();
 
-        await tester.tap(selectButtons.first);
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 500));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(selectButtons.first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
-        expect(find.byType(AiAnalysisScreen), findsOneWidget);
+      expect(find.byType(AiAnalysisScreen), findsOneWidget);
 
-        // Advance simulation timers so no pending timers remain
-        await tester.pump(const Duration(seconds: 6));
-      },
-    );
+      // Advance simulation timers so no pending timers remain
+      await tester.pump(const Duration(seconds: 6));
+    });
   });
 }
 

@@ -78,6 +78,8 @@ pytest -v
 
 - `GET /api/health` — Service health and active AI provider
 - `POST /api/projects` — Create project
+- `PUT /api/projects/{id}/scale` — Calibrate plan scale (two points as image ratios + real distance in mm)
+- `GET /api/projects/{id}/scale` / `DELETE /api/projects/{id}/scale` — Read or clear the calibration
 - `GET /api/projects` — List projects (with search filter)
 - `GET /api/projects/{id}` — Get project by ID
 - `POST /api/projects/{id}/plan` — Upload architectural plan (PDF/PNG/JPG up to 25 MB)

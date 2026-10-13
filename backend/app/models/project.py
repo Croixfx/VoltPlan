@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, DateTime, Text
+from sqlalchemy import Column, String, Integer, Float, JSON, DateTime, Text
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 
@@ -22,6 +22,10 @@ class Project(Base):
     floor_plan_content_type = Column(String(100), nullable=True)
     floor_plan_size = Column(Integer, nullable=True)
 
+    # User-calibrated plan scale (millimetres per pixel of the display image)
+    scale_mm_per_pixel = Column(Float, nullable=True)
+    scale_calibration = Column(JSON, nullable=True)
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(
         DateTime,
@@ -30,3 +34,7 @@ class Project(Base):
     )
 
     analysis = relationship("Analysis", back_populates="project", uselist=False, cascade="all, delete-orphan")
+
+    @property
+    def is_scale_calibrated(self) -> bool:
+        return bool(self.scale_mm_per_pixel and self.scale_mm_per_pixel > 0)

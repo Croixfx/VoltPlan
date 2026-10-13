@@ -30,6 +30,9 @@ async def upload_floor_plan(
     project.floor_plan_content_type = save_result["content_type"]
     project.floor_plan_size = save_result["size"]
     project.status = "uploaded"
+    # A new drawing invalidates any previous scale calibration
+    project.scale_mm_per_pixel = None
+    project.scale_calibration = None
 
     db.commit()
     db.refresh(project)

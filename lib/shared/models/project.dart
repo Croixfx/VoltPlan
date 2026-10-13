@@ -41,6 +41,9 @@ class Project {
   final int electricalPointsCount;
   final int circuitsCount;
   final num estimatedCostRwf;
+  final double? scaleMmPerPixel;
+
+  bool get isScaleCalibrated => (scaleMmPerPixel ?? 0) > 0;
 
   const Project({
     required this.id,
@@ -60,6 +63,7 @@ class Project {
     this.electricalPointsCount = 0,
     this.circuitsCount = 0,
     this.estimatedCostRwf = 0,
+    this.scaleMmPerPixel,
   });
 
   Project copyWith({
@@ -80,6 +84,7 @@ class Project {
     int? electricalPointsCount,
     int? circuitsCount,
     num? estimatedCostRwf,
+    double? scaleMmPerPixel,
   }) {
     return Project(
       id: id ?? this.id,
@@ -100,6 +105,7 @@ class Project {
           electricalPointsCount ?? this.electricalPointsCount,
       circuitsCount: circuitsCount ?? this.circuitsCount,
       estimatedCostRwf: estimatedCostRwf ?? this.estimatedCostRwf,
+      scaleMmPerPixel: scaleMmPerPixel ?? this.scaleMmPerPixel,
     );
   }
 
@@ -147,6 +153,7 @@ class Project {
       electricalPointsCount: (json['electrical_points_count'] as num?)?.toInt() ?? 0,
       circuitsCount: (json['circuits_count'] as num?)?.toInt() ?? 0,
       estimatedCostRwf: (json['estimated_cost_rwf'] as num?) ?? 0,
+      scaleMmPerPixel: (json['scale_mm_per_pixel'] as num?)?.toDouble(),
     );
   }
 

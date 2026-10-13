@@ -10,6 +10,14 @@ from app.core.logging import logger
 from app.schemas.floor_plan import VisionAnalysisResult, RoomObservation, ArchitecturalFeature
 
 
+class VisionProviderError(Exception):
+    """Raised when a configured AI vision provider cannot analyze the plan.
+
+    There is deliberately no silent fallback to mock data: an analysis of
+    fabricated rooms would be indistinguishable from a real one.
+    """
+
+
 class VisionProvider(ABC):
     @abstractmethod
     async def analyze_floor_plan(
@@ -211,8 +219,9 @@ class GeminiVisionProvider(VisionProvider):
         standard: str,
     ) -> VisionAnalysisResult:
         if not settings.GEMINI_API_KEY:
-            logger.warning("GEMINI_API_KEY not configured. Falling back to MockVisionProvider.")
-            return await MockVisionProvider().analyze_floor_plan(image_path, building_type, standard)
+            raise VisionProviderError(
+                "AI_PROVIDER is 'gemini' but GEMINI_API_KEY is not configured."
+            )
 
         logger.info(f"Calling Gemini Vision model: {settings.GEMINI_MODEL} for plan analysis")
 
@@ -335,8 +344,8 @@ Do NOT invent unreadable dimensions; return null for area_m2 if dimensions are n
                 logger.info(f"Gemini Vision successfully identified {len(parsed.get('rooms', []))} rooms from drawing.")
                 return VisionAnalysisResult(**parsed)
         except Exception as e:
-            logger.error(f"Gemini API request failed: {e}. Falling back to deterministic mock.", exc_info=True)
-            return await MockVisionProvider().analyze_floor_plan(image_path, building_type, standard)
+            logger.error(f"Gemini API request failed: {e}", exc_info=True)
+            raise VisionProviderError(f"Gemini vision analysis failed: {e}") from e
 
 
 class OpenAIVisionProvider(VisionProvider):
@@ -351,8 +360,9 @@ class OpenAIVisionProvider(VisionProvider):
         standard: str,
     ) -> VisionAnalysisResult:
         if not settings.OPENAI_API_KEY:
-            logger.warning("OPENAI_API_KEY not configured. Falling back to MockVisionProvider.")
-            return await MockVisionProvider().analyze_floor_plan(image_path, building_type, standard)
+            raise VisionProviderError(
+                "AI_PROVIDER is 'openai' but OPENAI_API_KEY is not configured."
+            )
 
         logger.info(f"Calling OpenAI Vision model: {settings.OPENAI_MODEL} for plan analysis")
 
@@ -423,8 +433,8 @@ Output JSON only matching the schema with rooms, architectural_features, observa
                 parsed = json.loads(content)
                 return VisionAnalysisResult(**parsed)
         except Exception as e:
-            logger.error(f"OpenAI API request failed: {e}. Falling back to deterministic mock.", exc_info=True)
-            return await MockVisionProvider().analyze_floor_plan(image_path, building_type, standard)
+            logger.error(f"OpenAI API request failed: {e}", exc_info=True)
+            raise VisionProviderError(f"OpenAI vision analysis failed: {e}") from e
 
 
 class VisionService:
@@ -435,8 +445,11 @@ class VisionService:
             return GeminiVisionProvider()
         elif provider_name == "openai":
             return OpenAIVisionProvider()
-        else:
+        elif provider_name == "mock":
             return MockVisionProvider()
+        raise VisionProviderError(
+            f"Unknown AI_PROVIDER '{settings.AI_PROVIDER}'. Use 'gemini', 'openai' or 'mock'."
+        )
 
     @staticmethod
     async def analyze_floor_plan(

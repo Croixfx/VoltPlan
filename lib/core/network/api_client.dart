@@ -48,6 +48,26 @@ class ApiClient {
     }
   }
 
+  Future<dynamic> put(
+    String url, {
+    dynamic body,
+    Map<String, String>? headers,
+  }) async {
+    try {
+      final response = await _client
+          .put(
+            Uri.parse(url),
+            headers: {..._defaultHeaders, ...(headers ?? {})},
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(const Duration(seconds: 30));
+
+      return _processResponse(response);
+    } catch (e) {
+      _handleError(e);
+    }
+  }
+
   Future<dynamic> patch(
     String url, {
     dynamic body,

@@ -7,6 +7,7 @@ import '../../shared/models/project.dart';
 import '../../shared/mock_data/mock_data.dart';
 import '../../shared/state/app_state.dart';
 import '../analysis/ai_analysis_screen.dart';
+import 'scale_calibration_screen.dart';
 
 class UploadPlanScreen extends StatefulWidget {
   final AppState state;
@@ -80,11 +81,14 @@ class _UploadPlanScreenState extends State<UploadPlanScreen> {
 
       if (mounted) {
         setState(() => _isUploading = false);
+        // Calibrate scale first so analysis can use verified geometry.
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                AiAnalysisScreen(state: widget.state, project: activeProj),
+            builder: (_) => ScaleCalibrationScreen(
+              state: widget.state,
+              project: activeProj,
+            ),
           ),
         );
       }

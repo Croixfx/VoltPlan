@@ -23,6 +23,35 @@ class ElectricalPoint(BaseModel):
         description="CALCULATED, RECOMMENDED, or REQUIRES_ENGINEER_REVIEW",
     )
     review_notes: Optional[str] = None
+    # Stage 2: Traceable Electrical Placement Provenance
+    x_mm: Optional[float] = Field(None, description="Canonical physical X coordinate in millimeters")
+    y_mm: Optional[float] = Field(None, description="Canonical physical Y coordinate in millimeters")
+    coordinate_system: str = Field(
+        "canonical_mm_and_normalized_ratio",
+        description="Coordinate system specification",
+    )
+    placement_rule: Optional[str] = Field(None, description="Explicit rule reference governing placement")
+    geometry_used: Optional[str] = Field(
+        None,
+        description="Geometric basis used: wall_strike_side_tangent, room_centroid, perimeter_wall_snapped, etc.",
+    )
+    is_scale_verified: bool = Field(False, description="True if scale was calibrated")
+    is_geometry_verified: bool = Field(False, description="True if room polygon was exact verified contour")
+    nearby_wall_id: Optional[str] = Field(None, description="Associated wall segment ID if attached/snapped")
+    nearby_door_id: Optional[str] = Field(None, description="Associated opening ID if switch/entrypoint")
+    nearby_obstacle_id: Optional[str] = Field(None, description="Associated obstacle ID if wet zone or appliance")
+    clearance_envelope_applied: Optional[str] = Field(
+        None,
+        description="Safety buffer or door-swing clearance zone evaluated during placement",
+    )
+    placement_status: str = Field(
+        "proposed",
+        description="proposed, needs_confirmation, or unresolved",
+    )
+    reasoning: Optional[str] = Field(
+        None,
+        description="Human-readable architectural and engineering justification for point placement",
+    )
 
 
 class Circuit(BaseModel):
