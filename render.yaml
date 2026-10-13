@@ -1,0 +1,51 @@
+# Render Blueprint for the VoltPlan backend (https://render.com/docs/blueprint-spec).
+# Render dashboard > New > Blueprint > pick this repository.
+#
+# CHECK BEFORE APPLYING (not verifiable from the repo): plan names and prices in the Render dashboard.
+# A persistent disk and a database that does not expire need paid plans; the free tier loses uploaded
+# plans on every restart and its database expires.
+#
+# The same backend/Dockerfile runs unchanged on Railway or Fly.io: set the environment variables below,
+# attach a Postgres database and mount a volume at /app/uploads.
+
+databases:
+  - name: voltplan-db
+    databaseName: voltplan
+    user: voltplan
+    plan: basic-256mb
+    ipAllowList: []          # private network only
+
+services:
+  - type: web
+    name: voltplan-api
+    runtime: docker
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    plan: starter
+    # Deploy the branch you want to run. Switch to main once it has been merged.
+    branch: remediation/phase1-geometry
+    healthCheckPath: /api/health
+    autoDeploy: false
+    disk:
+      name: voltplan-uploads
+      mountPath: /app/uploads
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: voltplan-db
+          property: connectionString
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "False"
+      # Required: shared key the mobile app sends as X-API-Key. Enter it in the dashboard (never commit it).
+      - key: API_KEY
+        sync: false
+      # mock = fake demo rooms for every upload. Use gemini or openai (and the matching key) for real plans.
+      - key: AI_PROVIDER
+        value: mock
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
