@@ -25,6 +25,58 @@ class AiAnalysisScreen extends StatefulWidget {
 }
 
 class _AiAnalysisScreenState extends State<AiAnalysisScreen> {
+  String get _projectId => (widget.state.selectedProject ?? widget.project).id;
+
+  void _openRoomsAndDoors() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GeometryEditorScreen(
+          state: widget.state,
+          project: widget.state.selectedProject ?? widget.project,
+        ),
+      ),
+    );
+  }
+
+  /// Rebuilds equipment, circuits and BOQ from the user's corrected rooms and doors (no AI call).
+  void _regenerate() {
+    widget.state.regenerateDesign(_projectId);
+  }
+
+  /// Reads the plan with AI again. When the user corrected rooms or doors that throws the corrections
+  /// away, so ask first.
+  Future<void> _reread() async {
+    if (!widget.state.hasGeometryCorrections) {
+      await widget.state.runRealAnalysis(_projectId);
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Re-read the plan with AI?'),
+        content: const Text(
+          'The rooms and doors you corrected will be lost. The design is rebuilt from a fresh AI '
+          'reading of the plan, which may make the same mistakes again. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            key: const Key('cancel-reread-button'),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep my corrections'),
+          ),
+          TextButton(
+            key: const Key('confirm-reread-button'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Re-read and discard', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await widget.state.runRealAnalysis(_projectId, discardCorrections: true);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +98,7 @@ class _AiAnalysisScreenState extends State<AiAnalysisScreen> {
         final isAnalyzing = widget.state.isAnalyzing;
         final stage = widget.state.analysisStage;
         final error = widget.state.analysisErrorMessage;
+        final hasCorrections = widget.state.hasGeometryCorrections;
 
         final rooms = widget.state.rooms;
         final points = widget.state.electricalPoints;
@@ -56,34 +109,27 @@ class _AiAnalysisScreenState extends State<AiAnalysisScreen> {
         return Scaffold(
           appBar: AppBar(
             title: Text(
-              isFinished ? 'Analysis Complete' : 'Analyzing Floor Plan',
+              isFinished
+                  ? 'Analysis Complete'
+                  : (error != null && !isAnalyzing ? 'Analysis Stopped' : 'Analyzing Floor Plan'),
             ),
             actions: [
-              if (error != null &&
-                  (error.contains('Geometry check') || error.contains('manually corrected')))
+              if (error != null && (hasCorrections || error.contains('Geometry check')))
                 TextButton.icon(
                   key: const Key('review-rooms-doors'),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => GeometryEditorScreen(
-                        state: widget.state,
-                        project: widget.state.selectedProject ?? widget.project,
-                      ),
-                    ),
-                  ),
+                  onPressed: _openRoomsAndDoors,
                   icon: const Icon(Icons.meeting_room_outlined, size: 16),
                   label: const Text('Rooms & doors'),
                 ),
-              if (isFinished || error != null)
+              // With corrections the error card offers the two explicit choices instead of a bare retry.
+              if ((isFinished || error != null) && !(error != null && hasCorrections))
                 TextButton.icon(
-                  onPressed: () {
-                    widget.state.runRealAnalysis(widget.project.id);
-                  },
+                  key: const Key('reanalyze-appbar-button'),
+                  onPressed: isAnalyzing ? null : _reread,
                   icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text(
-                    'Re-analyze',
-                    style: TextStyle(color: AppColors.primaryBlue),
+                  label: Text(
+                    hasCorrections ? 'Re-read with AI' : 'Re-analyze',
+                    style: const TextStyle(color: AppColors.primaryBlue),
                   ),
                 ),
             ],
@@ -247,21 +293,55 @@ class _AiAnalysisScreenState extends State<AiAnalysisScreen> {
                                             : AppColors.textSecondaryLight,
                                       ),
                                     ),
-                                    const SizedBox(height: 10),
-                                    ElevatedButton.icon(
-                                      onPressed: () {
-                                        widget.state.runRealAnalysis(
-                                          widget.project.id,
-                                        );
-                                      },
-                                      icon: const Icon(Icons.refresh, size: 14),
-                                      label: const Text('Retry Analysis'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.red,
-                                        foregroundColor: Colors.white,
-                                        visualDensity: VisualDensity.compact,
+                                    const SizedBox(height: 12),
+                                    if (hasCorrections) ...[
+                                      AppButton(
+                                        key: const Key('regenerate-design-button'),
+                                        label: 'Regenerate design',
+                                        icon: Icons.auto_fix_high,
+                                        isFullWidth: true,
+                                        isLoading: isAnalyzing,
+                                        onPressed: isAnalyzing ? null : _regenerate,
                                       ),
-                                    ),
+                                      const SizedBox(height: 8),
+                                      AppButton(
+                                        key: const Key('reread-plan-button'),
+                                        label: 'Re-read plan with AI',
+                                        icon: Icons.refresh,
+                                        variant: AppButtonVariant.outline,
+                                        isFullWidth: true,
+                                        onPressed: isAnalyzing ? null : _reread,
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'Regenerate keeps your corrected rooms and doors. '
+                                        'Re-reading the plan discards them.',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: isDark
+                                              ? AppColors.textSecondaryDark
+                                              : AppColors.textSecondaryLight,
+                                        ),
+                                      ),
+                                    ] else
+                                      ElevatedButton.icon(
+                                        key: const Key('retry-analysis-button'),
+                                        onPressed: isAnalyzing ? null : _reread,
+                                        icon: const Icon(Icons.refresh, size: 14),
+                                        label: const Text('Retry Analysis'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.red,
+                                          foregroundColor: Colors.white,
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                      ),
+                                    if (hasCorrections || error.contains('Geometry check'))
+                                      TextButton.icon(
+                                        key: const Key('fix-rooms-doors-button'),
+                                        onPressed: _openRoomsAndDoors,
+                                        icon: const Icon(Icons.meeting_room_outlined, size: 16),
+                                        label: const Text('Fix rooms & doors'),
+                                      ),
                                   ],
                                 ),
                               ),
@@ -271,7 +351,8 @@ class _AiAnalysisScreenState extends State<AiAnalysisScreen> {
                         const SizedBox(height: 16),
                       ],
 
-                      // Stage Progression Stepper Card
+                      // Stage Progression Stepper Card (hidden after a failure: it would still say "Processing")
+                      if (error == null || isAnalyzing)
                       Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(

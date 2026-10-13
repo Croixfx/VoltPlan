@@ -21,6 +21,8 @@ class AnalysisResult {
   final List<WiringArc> wiringArcs;
   final CostEstimate? costEstimate;
   final String engineeringDisclaimer;
+  final bool geometryReviewed; // the user corrected rooms / doors
+  final bool geometryNeedsRegeneration;
 
   const AnalysisResult({
     required this.projectId,
@@ -37,6 +39,8 @@ class AnalysisResult {
     this.wiringArcs = const [],
     this.costEstimate,
     required this.engineeringDisclaimer,
+    this.geometryReviewed = false,
+    this.geometryNeedsRegeneration = false,
   });
 
   AnalysisResult copyWith({
@@ -70,6 +74,8 @@ class AnalysisResult {
       wiringArcs: wiringArcs ?? this.wiringArcs,
       costEstimate: costEstimate ?? this.costEstimate,
       engineeringDisclaimer: engineeringDisclaimer ?? this.engineeringDisclaimer,
+      geometryReviewed: geometryReviewed,
+      geometryNeedsRegeneration: geometryNeedsRegeneration,
     );
   }
 
@@ -130,6 +136,8 @@ class AnalysisResult {
       wiringArcs: wiringArcs,
       costEstimate: costEst,
       engineeringDisclaimer: json['engineering_disclaimer'] as String? ?? '',
+      geometryReviewed: json['geometry_reviewed'] as bool? ?? false,
+      geometryNeedsRegeneration: json['geometry_needs_regeneration'] as bool? ?? false,
     );
   }
 }

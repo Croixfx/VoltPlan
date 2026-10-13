@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_exceptions.dart';
+import '../../core/network/user_messages.dart';
 import '../../features/analysis/data/analysis_repository.dart';
 import '../../features/boq/data/boq_repository.dart';
 import '../../features/electrical/data/point_repository.dart';
@@ -22,15 +23,19 @@ import '../models/room.dart';
 import '../models/wiring_arc.dart';
 
 class AppState extends ChangeNotifier {
-  AppState({PointRepository? pointRepository, GeometryRepository? geometryRepository})
-      : _pointRepo = pointRepository ?? PointRepository(),
-        _geometryRepo = geometryRepository ?? GeometryRepository() {
+  AppState({
+    PointRepository? pointRepository,
+    GeometryRepository? geometryRepository,
+    AnalysisRepository? analysisRepository,
+  })  : _pointRepo = pointRepository ?? PointRepository(),
+        _geometryRepo = geometryRepository ?? GeometryRepository(),
+        _analysisRepo = analysisRepository ?? AnalysisRepository() {
     _init();
   }
 
   // Repositories
   final ProjectRepository _projectRepo = ProjectRepository();
-  final AnalysisRepository _analysisRepo = AnalysisRepository();
+  final AnalysisRepository _analysisRepo;
   final PointRepository _pointRepo;
   final GeometryRepository _geometryRepo;
   final BoqRepository _boqRepo = BoqRepository();
@@ -182,6 +187,10 @@ class AppState extends ChangeNotifier {
   }
 
   void selectProject(Project project) {
+    if (_selectedProject?.id != project.id) {
+      _hasGeometryCorrections = false;
+      _geometryNeedsRegeneration = false;
+    }
     _selectedProject = project;
     // If selecting a project that has floor plan bytes or backend ID, reset or reload
     notifyListeners();
@@ -354,6 +363,9 @@ class AppState extends ChangeNotifier {
       );
 
       final finalProject = updated.copyWith(floorPlanBytes: floorPlanBytes);
+      // a new drawing makes corrections made on the old one meaningless (the backend clears them too)
+      _hasGeometryCorrections = false;
+      _geometryNeedsRegeneration = false;
 
       final index = _projects.indexWhere((p) => p.id == projectId);
       if (index != -1) {
@@ -449,7 +461,8 @@ class AppState extends ChangeNotifier {
   }
 
   // Real AI Analysis Execution against FastAPI Backend
-  Future<void> runRealAnalysis(String projectId) async {
+  /// [discardCorrections] re-reads the plan with AI even if the user corrected rooms / doors (those are lost).
+  Future<void> runRealAnalysis(String projectId, {bool discardCorrections = false}) async {
     _isAnalyzing = true;
     _analysisStage = 1;
     _analysisStatusMessage = 'Step 1/5: Preparing and rendering architectural floor plan...';
@@ -502,7 +515,7 @@ class AppState extends ChangeNotifier {
       notifyListeners();
 
       // Trigger analysis pipeline
-      await _analysisRepo.triggerAnalysis(effectiveProjectId);
+      await _analysisRepo.triggerAnalysis(effectiveProjectId, discardCorrections: discardCorrections);
 
       _analysisStage = 3;
       _analysisStatusMessage = 'Step 3/5: Applying Rwandan RS IEC 60364 electrical engineering rules...';
@@ -531,6 +544,8 @@ class AppState extends ChangeNotifier {
       _analysisObservations = result.observations;
       _analysisWarnings = result.warnings;
       _engineeringDisclaimer = result.engineeringDisclaimer;
+      _hasGeometryCorrections = result.geometryReviewed;
+      _geometryNeedsRegeneration = result.geometryNeedsRegeneration;
 
       _analysisStatusMessage = 'Analysis and electrical engineering calculations completed successfully.';
       _isAnalyzing = false;
@@ -556,9 +571,16 @@ class AppState extends ChangeNotifier {
     } catch (e) {
       // If error occurred, check if we should fall back to simulation or display real error
       if (e is ApiException) {
-        _analysisErrorMessage = e.message;
+        _analysisErrorMessage = friendlyApiMessage(e.message);
+        // Older servers refuse with plain text that names the API parameter instead of sending a code.
+        if (e.statusCode == 409 &&
+            (e.code == geometryCorrectedCode ||
+                e.message.contains('reset_geometry') ||
+                e.message.contains('manually corrected'))) {
+          _hasGeometryCorrections = true; // decides which buttons the analysis screen offers
+        }
       } else {
-        _analysisErrorMessage = e.toString();
+        _analysisErrorMessage = friendlyApiMessage(e.toString());
       }
 
       // If network unreachable, run simulation as graceful fallback
@@ -679,9 +701,16 @@ class AppState extends ChangeNotifier {
   bool _geometryNeedsRegeneration = false;
   bool get geometryNeedsRegeneration => _geometryNeedsRegeneration;
 
+  /// The user corrected rooms or doors in the selected project. Re-reading the plan with AI would discard
+  /// those corrections, so the UI offers "Regenerate design" and asks before "Re-read plan with AI".
+  bool _hasGeometryCorrections = false;
+  bool get hasGeometryCorrections => _hasGeometryCorrections;
+
   void noteGeometry(GeometryState geometry) {
-    if (_geometryNeedsRegeneration != geometry.needsRegeneration) {
+    if (_geometryNeedsRegeneration != geometry.needsRegeneration ||
+        _hasGeometryCorrections != geometry.reviewed) {
       _geometryNeedsRegeneration = geometry.needsRegeneration;
+      _hasGeometryCorrections = geometry.reviewed;
       notifyListeners();
     }
   }
@@ -691,15 +720,27 @@ class AppState extends ChangeNotifier {
   Future<String?> regenerateDesign(String projectId) async {
     final blocker = _editBlocker(projectId);
     if (blocker != null) return blocker;
+    _isAnalyzing = true;
+    _analysisStage = 3;
+    _analysisErrorMessage = null;
+    _analysisStatusMessage = 'Rebuilding equipment, circuits and BOQ from your corrected rooms and doors...';
+    notifyListeners();
     try {
       _applyEditedAnalysis(await _geometryRepo.regenerate(projectId));
       _geometryNeedsRegeneration = false;
+      _hasGeometryCorrections = true;
+      _isAnalyzing = false;
+      _analysisStage = 5;
+      _isAnalysisFinished = true;
+      _analysisStatusMessage = 'Design rebuilt from your corrections.';
       notifyListeners();
       return null;
-    } on ApiException catch (e) {
-      return e.message;
     } catch (e) {
-      return e.toString();
+      final message = friendlyApiMessage(e is ApiException ? e.message : e.toString());
+      _isAnalyzing = false;
+      _analysisErrorMessage = message;
+      notifyListeners();
+      return message;
     }
   }
 
@@ -740,10 +781,14 @@ class AppState extends ChangeNotifier {
 
     final idx = _projects.indexWhere((p) => p.id == result.projectId);
     if (idx != -1) {
+      final completed = result.status == 'completed';
       _projects[idx] = _projects[idx].copyWith(
         electricalPointsCount: result.electricalPoints.length,
         circuitsCount: result.circuits.length,
         estimatedCostRwf: result.costEstimate?.grandTotalRwf,
+        roomsCount: result.rooms.length,
+        currentStage: completed ? ProjectStage.electricalDesign : null,
+        status: completed ? ProjectStatus.completed : null,
       );
       if (_selectedProject?.id == result.projectId) {
         _selectedProject = _projects[idx];
