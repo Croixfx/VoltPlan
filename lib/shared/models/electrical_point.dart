@@ -9,7 +9,13 @@ enum ElectricalPointType {
   distributionBoard('Distribution Board', Icons.electrical_services),
   cookerPoint('Cooker Point', Icons.soup_kitchen_outlined),
   waterHeater('Water Heater Point', Icons.water_damage_outlined),
-  tvPoint('TV Outlet', Icons.tv);
+  tvPoint('TV Outlet', Icons.tv),
+  acPoint('AC Isolator', Icons.ac_unit),
+  extractorFan('Extractor Fan', Icons.air),
+  smokeDetector('Smoke Detector', Icons.sensors),
+  emergencyLight('Emergency Light', Icons.emergency_outlined),
+  dataPoint('Data Outlet', Icons.settings_ethernet),
+  outdoorLight('Outdoor Light', Icons.wb_twilight);
 
   final String label;
   final IconData icon;
@@ -41,6 +47,18 @@ enum ElectricalPointType {
         return ElectricalPointType.waterHeater;
       case 'tv_point':
         return ElectricalPointType.tvPoint;
+      case 'ac_point':
+        return ElectricalPointType.acPoint;
+      case 'extractor_fan':
+        return ElectricalPointType.extractorFan;
+      case 'smoke_detector':
+        return ElectricalPointType.smokeDetector;
+      case 'emergency_light':
+        return ElectricalPointType.emergencyLight;
+      case 'data_point':
+        return ElectricalPointType.dataPoint;
+      case 'outdoor_light':
+        return ElectricalPointType.outdoorLight;
       default:
         return ElectricalPointType.socketSingle;
     }
@@ -63,6 +81,20 @@ class ElectricalPoint {
   final double powerRatingW;
   final String ruleReference;
   final String reviewNotes;
+  // Stage 2: Traceable Electrical Placement Provenance
+  final double? xMm;
+  final double? yMm;
+  final String coordinateSystem;
+  final String? placementRule;
+  final String? geometryUsed;
+  final bool isScaleVerified;
+  final bool isGeometryVerified;
+  final String? nearbyWallId;
+  final String? nearbyDoorId;
+  final String? nearbyObstacleId;
+  final String? clearanceEnvelopeApplied;
+  final String placementStatus; // 'proposed', 'needs_confirmation', 'unresolved'
+  final String? reasoning;
 
   const ElectricalPoint({
     required this.id,
@@ -80,6 +112,19 @@ class ElectricalPoint {
     this.powerRatingW = 0.0,
     this.ruleReference = 'RS IEC 60364',
     this.reviewNotes = '',
+    this.xMm,
+    this.yMm,
+    this.coordinateSystem = 'canonical_mm_and_normalized_ratio',
+    this.placementRule,
+    this.geometryUsed,
+    this.isScaleVerified = false,
+    this.isGeometryVerified = false,
+    this.nearbyWallId,
+    this.nearbyDoorId,
+    this.nearbyObstacleId,
+    this.clearanceEnvelopeApplied,
+    this.placementStatus = 'proposed',
+    this.reasoning,
   });
 
   factory ElectricalPoint.fromJson(Map<String, dynamic> json) {
@@ -107,6 +152,10 @@ class ElectricalPoint {
       label = '20A Water Heater Isolator';
     } else if (typeStr == 'ac_point') {
       label = 'AC Isolator';
+    } else if (typeStr == 'smoke_detector') {
+      label = 'Interlinked Smoke Alarm';
+    } else if (typeStr == 'data_point') {
+      label = 'Cat6 Data Outlet';
     }
 
     return ElectricalPoint(
@@ -125,6 +174,19 @@ class ElectricalPoint {
       powerRatingW: (json['power_rating_w'] as num?)?.toDouble() ?? 0.0,
       ruleReference: json['rule_reference'] as String? ?? 'RS IEC 60364',
       reviewNotes: json['review_notes'] as String? ?? '',
+      xMm: (json['x_mm'] as num?)?.toDouble(),
+      yMm: (json['y_mm'] as num?)?.toDouble(),
+      coordinateSystem: json['coordinate_system'] as String? ?? 'canonical_mm_and_normalized_ratio',
+      placementRule: json['placement_rule'] as String?,
+      geometryUsed: json['geometry_used'] as String?,
+      isScaleVerified: json['is_scale_verified'] as bool? ?? false,
+      isGeometryVerified: json['is_geometry_verified'] as bool? ?? false,
+      nearbyWallId: json['nearby_wall_id'] as String?,
+      nearbyDoorId: json['nearby_door_id'] as String?,
+      nearbyObstacleId: json['nearby_obstacle_id'] as String?,
+      clearanceEnvelopeApplied: json['clearance_envelope_applied'] as String?,
+      placementStatus: json['placement_status'] as String? ?? 'proposed',
+      reasoning: json['reasoning'] as String?,
     );
   }
 
@@ -144,6 +206,19 @@ class ElectricalPoint {
     double? powerRatingW,
     String? ruleReference,
     String? reviewNotes,
+    double? xMm,
+    double? yMm,
+    String? coordinateSystem,
+    String? placementRule,
+    String? geometryUsed,
+    bool? isScaleVerified,
+    bool? isGeometryVerified,
+    String? nearbyWallId,
+    String? nearbyDoorId,
+    String? nearbyObstacleId,
+    String? clearanceEnvelopeApplied,
+    String? placementStatus,
+    String? reasoning,
   }) {
     return ElectricalPoint(
       id: id ?? this.id,
@@ -161,6 +236,19 @@ class ElectricalPoint {
       powerRatingW: powerRatingW ?? this.powerRatingW,
       ruleReference: ruleReference ?? this.ruleReference,
       reviewNotes: reviewNotes ?? this.reviewNotes,
+      xMm: xMm ?? this.xMm,
+      yMm: yMm ?? this.yMm,
+      coordinateSystem: coordinateSystem ?? this.coordinateSystem,
+      placementRule: placementRule ?? this.placementRule,
+      geometryUsed: geometryUsed ?? this.geometryUsed,
+      isScaleVerified: isScaleVerified ?? this.isScaleVerified,
+      isGeometryVerified: isGeometryVerified ?? this.isGeometryVerified,
+      nearbyWallId: nearbyWallId ?? this.nearbyWallId,
+      nearbyDoorId: nearbyDoorId ?? this.nearbyDoorId,
+      nearbyObstacleId: nearbyObstacleId ?? this.nearbyObstacleId,
+      clearanceEnvelopeApplied: clearanceEnvelopeApplied ?? this.clearanceEnvelopeApplied,
+      placementStatus: placementStatus ?? this.placementStatus,
+      reasoning: reasoning ?? this.reasoning,
     );
   }
 
@@ -180,5 +268,18 @@ class ElectricalPoint {
         'power_rating_w': powerRatingW,
         'rule_reference': ruleReference,
         'review_notes': reviewNotes,
+        'x_mm': xMm,
+        'y_mm': yMm,
+        'coordinate_system': coordinateSystem,
+        'placement_rule': placementRule,
+        'geometry_used': geometryUsed,
+        'is_scale_verified': isScaleVerified,
+        'is_geometry_verified': isGeometryVerified,
+        'nearby_wall_id': nearbyWallId,
+        'nearby_door_id': nearbyDoorId,
+        'nearby_obstacle_id': nearbyObstacleId,
+        'clearance_envelope_applied': clearanceEnvelopeApplied,
+        'placement_status': placementStatus,
+        'reasoning': reasoning,
       };
 }

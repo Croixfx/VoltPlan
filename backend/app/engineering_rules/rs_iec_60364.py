@@ -1,8 +1,28 @@
 import math
 from typing import List, Optional, Dict, Any
 from shapely.geometry import Point, LineString, Polygon
+from app.catalog import get_equipment
 from app.engineering_rules.base import BaseElectricalStandard
 from app.services.geometry_engine import GeometryEngine
+
+
+def catalog_point(type_id: str, coord: tuple, notes: str, status: str = "RECOMMENDED") -> Dict[str, Any]:
+    """Builds a point recommendation from catalog defaults (power, cable, protection, rule)."""
+    spec = get_equipment(type_id)
+    if spec is None:
+        raise KeyError(f"Unknown equipment type '{type_id}'.")
+    return {
+        "type": type_id,
+        "quantity": 1,
+        "power_rating_w": spec.default_power_w,
+        "x_ratio": coord[0],
+        "y_ratio": coord[1],
+        "recommended_cable": spec.cable,
+        "recommended_protection": spec.protection,
+        "rule_reference": spec.rule_reference,
+        "status": status,
+        "review_notes": notes,
+    }
 
 
 class RsIec60364Standard(BaseElectricalStandard):
@@ -344,6 +364,103 @@ class RsIec60364Standard(BaseElectricalStandard):
 
         return points
 
+    def get_additional_equipment(
+        self,
+        room_name: str,
+        area_m2: Optional[float],
+        building_type: str,
+        room_bounds: Optional[List[float]] = None,
+        architectural_features: Optional[List[Any]] = None,
+        image_path: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Catalog equipment beyond the core lighting / socket / appliance rules:
+        detection, ventilation, exterior lighting, communications and escape lighting."""
+        name = room_name.lower()
+        residential = (building_type or "Residential").strip().lower() == "residential"
+
+        is_wet = any(t in name for t in ["bath", "toilet", "wc", "washroom", "shower"])
+        is_kitchen = "kitchen" in name or "pantry" in name
+        is_bedroom = "bed" in name
+        is_living = any(t in name for t in ["living", "lounge", "salon"])
+        is_office = "office" in name or "study" in name
+        is_circulation = any(t in name for t in ["corridor", "hall", "stair"])
+        is_exterior = any(t in name for t in ["veranda", "balcony", "terrace", "porch", "entrance", "foyer"])
+
+        items: List[Dict[str, Any]] = []
+
+        def add(type_id: str, coord: tuple, notes: str, status: str = "RECOMMENDED") -> None:
+            items.append(catalog_point(type_id, coord, notes, status))
+
+        # Smoke detection: sleeping areas, living areas and escape routes (EN 14604 / local fire code)
+        if is_bedroom or is_living or is_circulation or (is_office and not residential):
+            add(
+                "smoke_detector",
+                self._ratio_point(room_bounds, 0.3, 0.3),
+                "One interlinked mains smoke alarm per habitable room or escape route, "
+                "ceiling mounted away from the luminaire and at least 300 mm from walls.",
+            )
+
+        # Escape lighting in non-residential circulation routes
+        if is_circulation and not residential:
+            add(
+                "emergency_light",
+                self._ratio_point(room_bounds, 0.7, 0.5),
+                "Non-residential escape route: maintained emergency luminaire with 3 h autonomy.",
+            )
+
+        # Mechanical extract in wet rooms and kitchens
+        if is_wet:
+            add(
+                "extractor_fan",
+                self._ratio_point(room_bounds, 0.75, 0.25),
+                "Wet-room extract. Fan must be rated for the zone it sits in "
+                "(IPX4 minimum, none in Zone 0); engineer to confirm against shower location.",
+                status="REQUIRES_ENGINEER_REVIEW",
+            )
+        elif is_kitchen:
+            add(
+                "extractor_fan",
+                self._ratio_point(room_bounds, 0.5, 0.2),
+                "Kitchen extract above the cooking area on an external wall where possible.",
+            )
+
+        # Exterior lighting at entrances and covered outdoor spaces
+        if is_exterior:
+            add(
+                "outdoor_light",
+                self._get_perimeter_point(room_bounds, position="entrance"),
+                "Weatherproof (min. IP54) wall luminaire at the entrance / outdoor space, RCD protected.",
+            )
+
+        # Structured cabling and TV
+        data_count = 0
+        if is_office:
+            data_count = 2
+        elif is_living or (is_bedroom and "master" in name):
+            data_count = 1
+        if data_count:
+            coords = self._distribute_points(data_count, room_bounds, offset_ratio=0.8, image_path=image_path)
+            for i in range(data_count):
+                add(
+                    "data_point",
+                    coords[i] if i < len(coords) else (None, None),
+                    "Cat6 outlet, segregated from mains cabling by at least 50 mm.",
+                )
+
+        if is_living or (is_bedroom and "master" in name):
+            coords = self._distribute_points(1, room_bounds, offset_ratio=0.8, image_path=image_path)
+            add("tv_point", coords[0] if coords else (None, None), "TV / satellite outlet at the screen position.")
+
+        return items
+
+    @staticmethod
+    def _ratio_point(bounds: Optional[List[float]], fx: float, fy: float) -> tuple:
+        """Point at fractional position (fx, fy) inside normalized room bounds."""
+        if not bounds or len(bounds) < 4:
+            return (None, None)
+        x1, y1, x2, y2 = bounds[0], bounds[1], bounds[2], bounds[3]
+        return (round(x1 + (x2 - x1) * fx, 3), round(y1 + (y2 - y1) * fy, 3))
+
     def get_circuit_rules(self) -> Dict[str, Any]:
         return {
             "max_lighting_points_per_circuit": 12,
@@ -358,6 +475,8 @@ class RsIec60364Standard(BaseElectricalStandard):
             "cooker_mcb": "32A Type B",
             "water_heater_cable": "3 x 2.5 mm² Cu/PVC",
             "water_heater_mcb": "20A Type B",
+            "safety_cable": "3 x 1.5 mm² Cu/PVC",
+            "safety_mcb": "6A Type B",
             "rcd_rating": "63A 30mA Type A RCD",
             "main_switch": "100A DP Isolator",
         }

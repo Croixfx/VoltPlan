@@ -6,11 +6,25 @@ from shapely.geometry import Polygon as ShapelyPolygon, Point as ShapelyPoint, L
 
 
 class ScaleStatus(str, Enum):
-    CALIBRATED_DIMENSION = "calibrated_dimension"  # Verified against explicit OCR dimension line or marker
+    CALIBRATED_DIMENSION = "calibrated_dimension"  # Verified against calibrated reference dimension (interactive or verified metadata; automated OCR not yet implemented)
     USER_CALIBRATED = "user_calibrated"            # User calibrated reference length on plan
     CAD_METADATA = "cad_metadata"                  # Extracted from vector CAD/BIM header
     ESTIMATED_HEURISTIC = "estimated_heuristic"    # Unverified architectural assumption (e.g. 1:100 scale)
     UNSCALED = "unscaled"                          # Dimensionless; physical rules cannot be marked as verified
+
+
+class AreaStatus(str, Enum):
+    VERIFIED = "verified"                                  # Calibrated scale AND exact confirmed polygonal contour
+    APPROXIMATE_CALIBRATED = "approximate_calibrated"      # Calibrated scale, but bounding-box rectangular approximation
+    UNSCALED_ESTIMATE = "unscaled_estimate"                # Uncalibrated heuristic scale estimate
+    UNRESOLVED = "unresolved"                              # Missing, empty, or degenerate boundary
+
+
+class WallVerificationMethod(str, Enum):
+    ADAPTIVE_CORRIDOR_HEURISTIC = "adaptive_corridor_heuristic"
+    CAD_VECTOR_EXACT = "cad_vector_exact"
+    UNVERIFIED_RASTER = "unverified_raster"
+    UNVERIFIED_NO_IMAGE = "unverified_no_image"
 
 
 class CoordinateOrigin(str, Enum):
@@ -124,6 +138,54 @@ class PlanTransform(BaseModel):
     offset_x_mm: float = 0.0
     offset_y_mm: float = 0.0
     is_scale_verified: bool = Field(False, description="True ONLY if verified by real dimension or CAD metadata")
+    image_sha256: Optional[str] = Field(None, description="SHA-256 hash of the calibrated source image to detect edits/crops")
+    calibrated_image_width: Optional[int] = Field(None, description="Width of source image at time of calibration")
+    calibrated_image_height: Optional[int] = Field(None, description="Height of source image at time of calibration")
+
+    def update_for_resize(self, new_width: int, new_height: int) -> "PlanTransform":
+        """Updates transform when image is resized uniformly. Invalidates if aspect ratio changes."""
+        if new_width <= 0 or new_height <= 0:
+            raise ValueError(f"Invalid resize dimensions: {new_width}x{new_height}")
+
+        orig_aspect = self.pixel_width / float(self.pixel_height)
+        new_aspect = new_width / float(new_height)
+
+        if abs(orig_aspect - new_aspect) > 0.01:
+            # Non-uniform stretch invalidates scale
+            return self.model_copy(update={
+                "pixel_width": new_width,
+                "pixel_height": new_height,
+                "scale_mm_per_pixel": None,
+                "scale_status": ScaleStatus.UNSCALED,
+                "is_scale_verified": False,
+                "scale_ratio_str": "Invalidated by non-uniform resize",
+            })
+
+        # Uniform resize scales scale_mm_per_pixel inversely
+        scale_mult = float(self.pixel_width) / float(new_width)
+        new_scale = (self.scale_mm_per_pixel * scale_mult) if self.scale_mm_per_pixel else None
+
+        return self.model_copy(update={
+            "pixel_width": new_width,
+            "pixel_height": new_height,
+            "scale_mm_per_pixel": round(new_scale, 4) if new_scale else None,
+        })
+
+    def update_for_crop(self, crop_x: float, crop_y: float, crop_w: int, crop_h: int) -> "PlanTransform":
+        """Updates transform for a cropped region of the image."""
+        if crop_w <= 0 or crop_h <= 0:
+            raise ValueError(f"Invalid crop dimensions: {crop_w}x{crop_h}")
+
+        scale = self.scale_mm_per_pixel if self.scale_mm_per_pixel else 1.0
+        new_offset_x = self.offset_x_mm + (crop_x * scale)
+        new_offset_y = self.offset_y_mm + (crop_y * scale)
+
+        return self.model_copy(update={
+            "pixel_width": crop_w,
+            "pixel_height": crop_h,
+            "offset_x_mm": round(new_offset_x, 2),
+            "offset_y_mm": round(new_offset_y, 2),
+        })
 
     def pixel_to_canonical(self, px: float, py: float) -> Point2D_mm:
         """Converts raw image pixel (px, py) to canonical physical millimeters."""
@@ -184,7 +246,15 @@ class WallSegment(BaseModel):
     classification: WallClassification = WallClassification.UNKNOWN
     interior_room_id: Optional[str] = None
     exterior_or_neighbor_room_id: Optional[str] = None
+    shared_with_wall_id: Optional[str] = Field(None, description="ID of coincident shared wall segment in neighboring room")
+    is_shared_duplicate: bool = Field(False, description="True if this wall segment duplicates an already-registered shared partition")
+    verification_method: WallVerificationMethod = Field(
+        WallVerificationMethod.ADAPTIVE_CORRIDOR_HEURISTIC,
+        description="Method used to detect or verify physical wall presence",
+    )
     is_verified_physical_wall: bool = Field(False, description="True if proven by continuous dark pixels or CAD line")
+    is_physical_candidate: bool = Field(False, description="True if heuristic corridor suggests physical wall presence")
+    is_ambiguous: bool = Field(False, description="True if wall evidence is borderline and requires user/field confirmation")
     confidence: float = Field(1.0, ge=0.0, le=1.0)
 
     @property
@@ -223,9 +293,21 @@ class Opening(BaseModel):
     hinge_point_mm: Optional[Point2D_mm] = None
     strike_point_mm: Optional[Point2D_mm] = None
     swing_direction: DoorSwingDirection = DoorSwingDirection.UNKNOWN
+    is_swing_observed: bool = Field(
+        False,
+        description="True ONLY if door swing direction and arc were explicitly observed on the architectural plan",
+    )
+    observed_swing_arc_mm: Optional[Polygon2D_mm] = Field(
+        None,
+        description="Exact circular sector swept by door leaf strictly when observed on the drawing",
+    )
+    assumed_clearance_envelope_mm: Optional[Polygon2D_mm] = Field(
+        None,
+        description="Conservative safety clearance envelope assumed for switch placement when swing direction is unobserved",
+    )
     swing_arc_sector_mm: Optional[Polygon2D_mm] = Field(
         None,
-        description="Exact 90° circular sector polygon swept by door leaf. Switches must NEVER land inside this envelope.",
+        description="Clearance sector envelope (observed or assumed). Switches must NEVER land inside this envelope.",
     )
     confidence: float = Field(1.0, ge=0.0, le=1.0)
 
@@ -258,15 +340,37 @@ class FixedObstacle(BaseModel):
         0.0,
         description="Mandatory exclusion clearance buffer in mm (e.g. 600mm Zone 2 buffer for showers)",
     )
+    is_compliance_certified: bool = Field(
+        False,
+        description="True ONLY if clearance buffer is calculated against verified physical scale and regulatory standard",
+    )
     confidence: float = Field(1.0, ge=0.0, le=1.0)
 
     @property
     def exclusion_envelope_mm(self) -> Polygon2D_mm:
-        """Returns the boundary polygon expanded by required_buffer_mm."""
+        """Returns the raw boundary polygon expanded by required_buffer_mm."""
         if self.required_buffer_mm <= 0.0:
             return self.boundary_mm
         buffered = self.boundary_mm.to_shapely().buffer(self.required_buffer_mm)
         return Polygon2D_mm.from_shapely(buffered)
+
+    def get_clipped_envelope_mm(self, room_poly_mm: Optional[Polygon2D_mm]) -> Polygon2D_mm:
+        """
+        Returns the exclusion envelope clipped to the room interior polygon,
+        preventing safety zones from penetrating drywall partitions into adjacent rooms.
+        """
+        raw_env = self.exclusion_envelope_mm
+        if room_poly_mm is None:
+            return raw_env
+
+        sh_raw = raw_env.to_shapely()
+        sh_room = room_poly_mm.to_shapely()
+
+        intersection = sh_raw.intersection(sh_room)
+        if intersection.is_empty or not hasattr(intersection, "exterior"):
+            return raw_env
+
+        return Polygon2D_mm.from_shapely(intersection)
 
 
 class RoomType(str, Enum):
@@ -295,8 +399,19 @@ class RoomBoundary(BaseModel):
     name: str
     room_type: RoomType
     boundary_polygon_mm: Polygon2D_mm
-    area_m2: Optional[float] = Field(None, description="Physical floor area in m2; verified if scale is calibrated")
-    is_area_verified: bool = Field(False, description="True if calculated from verified millimeter scale")
+    area_m2: Optional[float] = Field(None, description="Physical floor area in m2; verified ONLY if scale and true geometry are confirmed")
+    area_status: AreaStatus = Field(
+        AreaStatus.UNSCALED_ESTIMATE,
+        description="Explicit area status: verified, approximate_calibrated, unscaled_estimate, or unresolved",
+    )
+    is_area_verified: bool = Field(
+        False,
+        description="True ONLY if calculated from verified millimeter scale AND verified contour (not a bounding box approximation)",
+    )
+    is_rectangular_approximation: bool = Field(
+        False,
+        description="True if polygon is a bounding box approximation rather than verified contour",
+    )
     confidence: float = Field(1.0, ge=0.0, le=1.0)
     has_virtual_boundaries: bool = Field(
         False,

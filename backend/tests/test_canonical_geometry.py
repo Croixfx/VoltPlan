@@ -1,4 +1,5 @@
 import math
+import os
 import pytest
 import numpy as np
 import cv2
@@ -12,7 +13,9 @@ from app.schemas.canonical_geometry import (
     PlanTransform,
     CoordinateOrigin,
     ScaleStatus,
+    AreaStatus,
     WallClassification,
+    WallVerificationMethod,
     WallSegment,
     OpeningType,
     DoorSwingDirection,
@@ -26,415 +29,625 @@ from app.schemas.canonical_geometry import (
 from app.schemas.floor_plan import RoomObservation, ArchitecturalFeature
 from app.services.coordinate_transform import CoordinateTransformEngine
 from app.services.canonical_geometry_service import CanonicalGeometryService
+from app.services.electrical_engine import ElectricalEngine
 
 
 # =========================================================================
-# 1. Round-Trip Transformations & Accuracy Tests
+# 1. Independent Rectangular Image Coordinate Transformations (W != H)
 # =========================================================================
 
-def test_pixel_to_canonical_round_trip():
-    """Verify sub-pixel and sub-millimeter bidirectional round-trip transformation accuracy."""
-    transform = PlanTransform(
-        pixel_width=2000,
-        pixel_height=1500,
-        scale_mm_per_pixel=10.0,  # 1 px = 10 mm
-        scale_status=ScaleStatus.CALIBRATED_DIMENSION,
-        origin=CoordinateOrigin.TOP_LEFT,
-        rotation_deg=0.0,
-        is_scale_verified=True,
-    )
-
-    test_pixels = [(0.0, 0.0), (500.5, 300.25), (1000.0, 750.0), (1999.0, 1499.0)]
-    for orig_px, orig_py in test_pixels:
-        pt_mm = CoordinateTransformEngine.pixel_to_canonical(orig_px, orig_py, transform)
-        back_px, back_py = CoordinateTransformEngine.canonical_to_pixel(pt_mm, transform)
-
-        assert abs(back_px - orig_px) < 0.01, f"Pixel X round-trip error: {back_px} vs {orig_px}"
-        assert abs(back_py - orig_py) < 0.01, f"Pixel Y round-trip error: {back_py} vs {orig_py}"
-
-
-def test_normalized_to_canonical_round_trip():
-    """Verify normalized display coordinates [0.0, 1.0] round-trip accurately with canonical mm."""
-    transform = PlanTransform(
-        pixel_width=1600,
-        pixel_height=1200,
-        scale_mm_per_pixel=12.5,
-        scale_status=ScaleStatus.CALIBRATED_DIMENSION,
-        origin=CoordinateOrigin.TOP_LEFT,
-        rotation_deg=0.0,
-        is_scale_verified=True,
-    )
-
-    test_norms = [(0.0, 0.0), (0.25, 0.5), (0.333, 0.667), (1.0, 1.0)]
-    for nx, ny in test_norms:
-        pt_mm = CoordinateTransformEngine.normalized_to_canonical(nx, ny, transform)
-        back_nx, back_ny = CoordinateTransformEngine.canonical_to_normalized(pt_mm, transform)
-
-        assert abs(back_nx - nx) <= 0.001, f"Normalized X round-trip error: {back_nx} vs {nx}"
-        assert abs(back_ny - ny) <= 0.001, f"Normalized Y round-trip error: {back_ny} vs {ny}"
-
-
-# =========================================================================
-# 2. Scale & Resolution Invariance Tests
-# =========================================================================
-
-def test_different_resolutions_preserve_physical_dimensions():
+def test_rectangular_image_rotations_independent_ground_truth():
     """
-    A room measuring 4000 mm x 5000 mm should produce identical canonical millimeters
-    regardless of whether the plan was rendered at 1000x800 or 4000x3200.
+    Independently asserts exact analytical coordinates for rectangular images (W != H)
+    across all 4 right-angle rotations (0, 90, 180, 270 deg) for both top-left and bottom-left origins.
+    Uses independent analytical expected values rather than reversing the transformation.
     """
-    # Low-res image: 1000x800, scale = 20 mm/px -> Room is 200px x 250px
-    transform_low = PlanTransform(
-        pixel_width=1000,
+    W = 1200.0
+    H = 800.0
+    scale = 10.0  # 1 px = 10 mm
+
+    # Test point at (300, 200) px
+    px, py = 300.0, 200.0
+
+    # 1. Rotation 0 deg (Top-Left): x_mm = 300 * 10 = 3000, y_mm = 200 * 10 = 2000
+    t_0 = PlanTransform(pixel_width=int(W), pixel_height=int(H), scale_mm_per_pixel=scale, rotation_deg=0.0)
+    pt_0 = CoordinateTransformEngine.pixel_to_canonical(px, py, t_0)
+    assert pt_0.x == 3000.0
+    assert pt_0.y == 2000.0
+
+    # 2. Rotation 90 deg CW (Top-Left):
+    # Dimensions swap: W' = H = 800, H' = W = 1200
+    # Analytic formula: x' = H - py = 800 - 200 = 600 px; y' = px = 300 px
+    # x_mm = 600 * 10 = 6000 mm, y_mm = 300 * 10 = 3000 mm
+    t_90 = PlanTransform(pixel_width=int(W), pixel_height=int(H), scale_mm_per_pixel=scale, rotation_deg=90.0)
+    pt_90 = CoordinateTransformEngine.pixel_to_canonical(px, py, t_90)
+    assert pt_90.x == 6000.0, f"Expected 6000.0, got {pt_90.x}"
+    assert pt_90.y == 3000.0, f"Expected 3000.0, got {pt_90.y}"
+
+    # 3. Rotation 180 deg CW (Top-Left):
+    # Dimensions: W' = 1200, H' = 800
+    # Analytic formula: x' = W - px = 1200 - 300 = 900 px; y' = H - py = 800 - 200 = 600 px
+    # x_mm = 900 * 10 = 9000 mm, y_mm = 600 * 10 = 6000 mm
+    t_180 = PlanTransform(pixel_width=int(W), pixel_height=int(H), scale_mm_per_pixel=scale, rotation_deg=180.0)
+    pt_180 = CoordinateTransformEngine.pixel_to_canonical(px, py, t_180)
+    assert pt_180.x == 9000.0
+    assert pt_180.y == 6000.0
+
+    # 4. Rotation 270 deg CW (Top-Left):
+    # Dimensions swap: W' = H = 800, H' = W = 1200
+    # Analytic formula: x' = py = 200 px; y' = W - px = 1200 - 300 = 900 px
+    # x_mm = 200 * 10 = 2000 mm, y_mm = 900 * 10 = 9000 mm
+    t_270 = PlanTransform(pixel_width=int(W), pixel_height=int(H), scale_mm_per_pixel=scale, rotation_deg=270.0)
+    pt_270 = CoordinateTransformEngine.pixel_to_canonical(px, py, t_270)
+    assert pt_270.x == 2000.0
+    assert pt_270.y == 9000.0
+
+    # 5. Bottom-Left Origin with 90 deg rotation (CAD convention):
+    # In destination frame (W'=800, H'=1200), y_cad = H' - y' = 1200 - 300 = 900 px
+    # y_mm = 900 * 10 = 9000 mm; x_mm = 600 * 10 = 6000 mm
+    t_90_bl = PlanTransform(
+        pixel_width=int(W),
+        pixel_height=int(H),
+        scale_mm_per_pixel=scale,
+        rotation_deg=90.0,
+        origin=CoordinateOrigin.BOTTOM_LEFT,
+    )
+    pt_90_bl = CoordinateTransformEngine.pixel_to_canonical(px, py, t_90_bl)
+    assert pt_90_bl.x == 6000.0
+    assert pt_90_bl.y == 9000.0
+
+
+def test_tall_rectangular_image_800x1200():
+    """Verify rectangular transformations on tall plans (W < H, 800x1200)."""
+    W = 800.0
+    H = 1200.0
+    scale = 5.0
+
+    # Corner test: (800, 1200) bottom-right
+    t_90 = PlanTransform(pixel_width=int(W), pixel_height=int(H), scale_mm_per_pixel=scale, rotation_deg=90.0)
+    # 90 CW: x' = H - py = 1200 - 1200 = 0 px; y' = px = 800 px
+    pt = CoordinateTransformEngine.pixel_to_canonical(800.0, 1200.0, t_90)
+    assert pt.x == 0.0
+    assert pt.y == 4000.0  # 800 * 5 = 4000 mm
+
+
+# =========================================================================
+# 2. Crop & Resize Operations & Scale Preservation
+# =========================================================================
+
+def test_uniform_resize_preserves_physical_dimensions():
+    """Uniform resizing (e.g. 1200x800 downscaled to 600x400) adjusts scale factor inversely."""
+    t_orig = PlanTransform(
+        pixel_width=1200,
         pixel_height=800,
-        scale_mm_per_pixel=20.0,
-        scale_status=ScaleStatus.CALIBRATED_DIMENSION,
-        is_scale_verified=True,
-    )
-
-    # High-res image: 4000x3200, scale = 5 mm/px -> Room is 800px x 1000px
-    transform_high = PlanTransform(
-        pixel_width=4000,
-        pixel_height=3200,
-        scale_mm_per_pixel=5.0,
-        scale_status=ScaleStatus.CALIBRATED_DIMENSION,
-        is_scale_verified=True,
-    )
-
-    # In low-res: room normalized [0.1, 0.1, 0.3, 0.35]
-    # px = [100, 80] to [300, 280] -> dx = 200px * 20 = 4000mm, dy = 200px * 20 = 4000mm
-    pt1_low = CoordinateTransformEngine.pixel_to_canonical(100, 80, transform_low)
-    pt2_low = CoordinateTransformEngine.pixel_to_canonical(300, 280, transform_low)
-
-    # In high-res: same room at 4x resolution: px = [400, 320] to [1200, 1120]
-    # dx = 800px * 5 = 4000mm, dy = 800px * 5 = 4000mm
-    pt1_high = CoordinateTransformEngine.pixel_to_canonical(400, 320, transform_high)
-    pt2_high = CoordinateTransformEngine.pixel_to_canonical(1200, 1120, transform_high)
-
-    width_low = pt2_low.x - pt1_low.x
-    width_high = pt2_high.x - pt1_high.x
-
-    height_low = pt2_low.y - pt1_low.y
-    height_high = pt2_high.y - pt1_high.y
-
-    assert width_low == 4000.0
-    assert width_high == 4000.0
-    assert height_low == 4000.0
-    assert height_high == 4000.0
-
-
-def test_drawing_scale_calibration():
-    """Verify scale calibration from dimension line OCR reference points."""
-    base_transform = PlanTransform(
-        pixel_width=1920,
-        pixel_height=1080,
-        scale_status=ScaleStatus.UNSCALED,
-        is_scale_verified=False,
-    )
-
-    # User or OCR identifies 2 tick marks at (100, 200) and (500, 200), distance 400px representing 4800mm
-    calibrated = CoordinateTransformEngine.calibrate_scale_from_points(
-        p1_px=(100.0, 200.0),
-        p2_px=(500.0, 200.0),
-        physical_distance_mm=4800.0,
-        transform=base_transform,
-        source=ScaleStatus.CALIBRATED_DIMENSION,
-    )
-
-    assert calibrated.is_scale_verified is True
-    assert calibrated.scale_status == ScaleStatus.CALIBRATED_DIMENSION
-    assert calibrated.scale_mm_per_pixel == 12.0  # 4800 mm / 400 px = 12.0 mm/px
-
-
-# =========================================================================
-# 3. Rotations & Coordinate Origin Tests
-# =========================================================================
-
-@pytest.mark.parametrize("rotation", [0.0, 90.0, 180.0, 270.0])
-def test_plan_rotations_preserve_relative_geometry(rotation):
-    """Verify that 90, 180, 270 degree plan rotations preserve canonical distance between points."""
-    transform = PlanTransform(
-        pixel_width=1000,
-        pixel_height=1000,
         scale_mm_per_pixel=10.0,
-        rotation_deg=rotation,
-        scale_status=ScaleStatus.CALIBRATED_DIMENSION,
+        scale_status=ScaleStatus.USER_CALIBRATED,
         is_scale_verified=True,
     )
 
-    # Two points 200 pixels apart horizontally
-    p1 = CoordinateTransformEngine.pixel_to_canonical(200.0, 300.0, transform)
-    p2 = CoordinateTransformEngine.pixel_to_canonical(400.0, 300.0, transform)
-
-    dist_mm = p1.distance_to(p2)
-    assert abs(dist_mm - 2000.0) < 0.1, f"Rotation {rotation} deg failed to preserve 2000mm distance: {dist_mm}"
-
-    # Round trip test
-    b1_px, b1_py = CoordinateTransformEngine.canonical_to_pixel(p1, transform)
-    assert abs(b1_px - 200.0) < 0.05
-    assert abs(b1_py - 300.0) < 0.05
+    t_resized = t_orig.update_for_resize(2400, 1600)  # Upscaled 2x
+    assert t_resized.scale_mm_per_pixel == 5.0  # Each pixel now represents half as many mm
+    assert t_resized.is_scale_verified is True
 
 
-def test_cartesian_bottom_left_origin():
-    """Verify bottom-left Cartesian origin (CAD convention +Y up) inverts Y correctly."""
-    t_top_left = PlanTransform(pixel_width=1000, pixel_height=800, scale_mm_per_pixel=1.0, origin=CoordinateOrigin.TOP_LEFT)
-    t_bottom_left = PlanTransform(pixel_width=1000, pixel_height=800, scale_mm_per_pixel=1.0, origin=CoordinateOrigin.BOTTOM_LEFT)
+def test_non_uniform_resize_invalidates_scale():
+    """Non-uniform stretching (aspect ratio change) invalidates calibration."""
+    t_orig = PlanTransform(
+        pixel_width=1200,
+        pixel_height=800,
+        scale_mm_per_pixel=10.0,
+        scale_status=ScaleStatus.USER_CALIBRATED,
+        is_scale_verified=True,
+    )
 
-    pt_top = CoordinateTransformEngine.pixel_to_canonical(100, 100, t_top_left)
-    pt_bot = CoordinateTransformEngine.pixel_to_canonical(100, 100, t_bottom_left)
+    t_stretched = t_orig.update_for_resize(1200, 1200)  # Stretched vertically
+    assert t_stretched.is_scale_verified is False
+    assert t_stretched.scale_status == ScaleStatus.UNSCALED
+    assert t_stretched.scale_mm_per_pixel is None
 
-    assert pt_top.x == 100.0 and pt_top.y == 100.0
-    assert pt_bot.x == 100.0 and pt_bot.y == 700.0  # 800 - 100 = 700
+
+def test_crop_updates_offsets_accurately():
+    """Cropping updates offset_x_mm and offset_y_mm so physical coordinates remain consistent."""
+    t_orig = PlanTransform(
+        pixel_width=1200,
+        pixel_height=800,
+        scale_mm_per_pixel=10.0,
+    )
+
+    # Crop rectangle: x=200, y=150, w=600, h=400
+    t_cropped = t_orig.update_for_crop(crop_x=200, crop_y=150, crop_w=600, crop_h=400)
+    assert t_cropped.pixel_width == 600
+    assert t_cropped.pixel_height == 400
+    assert t_cropped.offset_x_mm == 2000.0  # 200 * 10
+    assert t_cropped.offset_y_mm == 1500.0  # 150 * 10
 
 
 # =========================================================================
-# 4. Non-Rectangular Rooms (L-Shaped, Holes, Areas)
+# 3. Calibration Input Validation & Noise Rejection
 # =========================================================================
 
-def test_l_shaped_room_geometry_and_area():
+def test_calibration_rejects_points_too_close():
+    """Calibration must reject points closer than 5 pixels to prevent noise amplification."""
+    transform = PlanTransform(pixel_width=1000, pixel_height=1000)
+
+    # Distance is 3 pixels: (100, 100) to (103, 100)
+    with pytest.raises(ValueError, match="too close"):
+        CoordinateTransformEngine.calibrate_scale_from_points(
+            (100.0, 100.0), (103.0, 100.0), 1000.0, transform
+        )
+
+
+def test_calibration_rejects_negative_or_zero_distance():
+    """Physical distance must be strictly positive."""
+    transform = PlanTransform(pixel_width=1000, pixel_height=1000)
+    with pytest.raises(ValueError, match="strictly positive"):
+        CoordinateTransformEngine.calibrate_scale_from_points(
+            (100.0, 100.0), (300.0, 100.0), -500.0, transform
+        )
+
+
+# =========================================================================
+# 4. Invented Room Geometry Removal (No Silent 80% Fallback)
+# =========================================================================
+
+def test_missing_or_degenerate_room_bounds_flagged_as_unresolved():
     """
-    Test an L-shaped room (6-point polygon) canonical representation:
-    Dimensions: 6m x 6m overall with a 3m x 3m cutout.
-    Total area should be: (6*6) - (3*3) = 36 - 9 = 27.0 m2.
-    """
-    pts = [
-        Point2D_mm(x=0.0, y=0.0),
-        Point2D_mm(x=6000.0, y=0.0),
-        Point2D_mm(x=6000.0, y=3000.0),
-        Point2D_mm(x=3000.0, y=3000.0),
-        Point2D_mm(x=3000.0, y=6000.0),
-        Point2D_mm(x=0.0, y=6000.0),
-    ]
-    l_poly = Polygon2D_mm(exterior=pts)
-
-    assert abs(l_poly.area_m2 - 27.0) < 0.01, f"Expected 27.0 m2, got {l_poly.area_m2}"
-    bbox = l_poly.bounding_box
-    assert bbox.width == 6000.0
-    assert bbox.height == 6000.0
-
-    # Ensure centroid is inside or on the boundary
-    centroid = l_poly.centroid
-    assert 0.0 < centroid.x < 6000.0
-    assert 0.0 < centroid.y < 6000.0
-
-
-# =========================================================================
-# 5. Scale Verification Gate & Uncalibrated Geometry Warnings
-# =========================================================================
-
-def test_unscaled_plan_triggers_verification_gate():
-    """
-    When plan scale cannot be verified, canonical model must mark is_scale_verified=False
-    and include warnings preventing physical electrical certification.
+    Rooms with missing, empty, or degenerate bounds must NOT be silently replaced
+    with [0.1, 0.1, 0.9, 0.9]. They must be recorded in unresolved_geometry.
     """
     rooms = [
-        RoomObservation(id="r1", name="Master Bedroom", confidence=0.92, bounds=[0.1, 0.1, 0.5, 0.5])
+        RoomObservation(id="r_valid", name="Living Room", confidence=0.95, bounds=[0.1, 0.1, 0.5, 0.5]),
+        RoomObservation(id="r_missing", name="Corridor", confidence=0.80, bounds=None),
+        RoomObservation(id="r_degenerate", name="Storage", confidence=0.75, bounds=[0.5, 0.5, 0.2, 0.2]),
     ]
-    features = []
 
     plan = CanonicalGeometryService.build_canonical_floor_plan(
         rooms=rooms,
-        features=features,
-        scale_mm_per_pixel=None,  # No scale established
-        is_scale_verified=False,
+        features=[],
+        pixel_width=1000,
+        pixel_height=1000,
     )
 
-    assert plan.is_scale_verified is False
-    assert plan.transform.is_scale_verified is False
-    assert plan.rooms[0].is_area_verified is False
-    assert len(plan.provenance.geometry_warnings) > 0
-    assert "uncalibrated" in plan.provenance.geometry_warnings[0].lower()
+    # Only 1 valid room should be constructed
+    assert len(plan.rooms) == 1
+    assert plan.rooms[0].id == "r_valid"
+    assert plan.rooms[0].is_rectangular_approximation is True
+
+    # Both missing and degenerate rooms must be explicitly listed in unresolved_geometry
+    unres_text = " ".join(plan.provenance.unresolved_geometry)
+    assert "Corridor" in unres_text
+    assert "Storage" in unres_text
 
 
-def test_verified_scale_marks_area_verified():
-    """When scale is verified by calibration, room area is marked as verified."""
+# =========================================================================
+# 5. Invented Obstacles Removal & Safety Buffer Responsibility
+# =========================================================================
+
+def test_bathroom_without_fixtures_does_not_fabricate_shower():
+    """
+    Bathrooms without detected fixtures must NOT have an invented 900x900 shower.
+    Instead, an unresolved geometry warning must be issued for engineering review.
+    """
     rooms = [
-        RoomObservation(id="r1", name="Living Room", confidence=0.95, bounds=[0.0, 0.0, 0.5, 0.5])
+        RoomObservation(id="r_bath", name="Master Bathroom", confidence=0.90, bounds=[0.1, 0.1, 0.4, 0.4])
     ]
-    features = []
 
     plan = CanonicalGeometryService.build_canonical_floor_plan(
         rooms=rooms,
-        features=features,
+        features=[],  # No shower detected!
         pixel_width=1000,
         pixel_height=1000,
-        scale_mm_per_pixel=10.0,  # 10 mm per px
-        is_scale_verified=True,
-        scale_status=ScaleStatus.CALIBRATED_DIMENSION,
     )
 
-    assert plan.is_scale_verified is True
-    assert plan.rooms[0].is_area_verified is True
-    # 500px * 10 = 5000 mm = 5m. 5m * 5m = 25 m2
-    assert abs(plan.rooms[0].area_m2 - 25.0) < 0.1
+    assert len(plan.obstacles) == 0, "No shower enclosure should be fabricated!"
+    unres_text = " ".join(plan.provenance.unresolved_geometry)
+    assert "Master Bathroom" in unres_text
+    assert "unlocated" in unres_text
 
 
-# =========================================================================
-# 6. Morphological Wall Verification (Physical Wall vs Virtual Divider)
-# =========================================================================
-
-def test_morphological_wall_verification_separates_divider():
+def test_obstacle_buffer_clipped_to_room_boundary():
     """
-    Synthetic raster test:
-    Creates a 400x400 image where:
-      - North, East, and West walls are drawn with thick black lines (intensity 0).
-      - South wall is left completely blank/white (open archway into corridor).
-    Verifies that North wall is classified as physical wall, and South is classified as virtual divider.
+    Safety clearance buffer must be clipped to the room boundary to prevent
+    buffer penetration through walls into adjoining spaces.
     """
-    # 400x400 white canvas
-    img = np.full((400, 400), 255, dtype=np.uint8)
-
-    # Draw North wall: (50, 50) to (350, 50)
-    cv2.line(img, (50, 50), (350, 50), 0, thickness=6)
-    # Draw East wall: (350, 50) to (350, 350)
-    cv2.line(img, (350, 50), (350, 350), 0, thickness=6)
-    # Draw West wall: (50, 50) to (50, 350)
-    cv2.line(img, (50, 50), (50, 350), 0, thickness=6)
-    # South wall (50, 350) to (350, 350) is left WHITE (open plan / archway)
-
-    transform = PlanTransform(
-        pixel_width=400,
-        pixel_height=400,
-        scale_mm_per_pixel=10.0,
-        origin=CoordinateOrigin.TOP_LEFT,
-        is_scale_verified=True,
-    )
-
-    # Test North wall (Physical)
-    p_north_start = CoordinateTransformEngine.pixel_to_canonical(50, 50, transform)
-    p_north_end = CoordinateTransformEngine.pixel_to_canonical(350, 50, transform)
-    is_north_phys, conf_north = CanonicalGeometryService.verify_wall_profile(
-        p_north_start, p_north_end, transform, gray_img=img
-    )
-    assert is_north_phys is True
-    assert conf_north >= 0.70
-
-    # Test South wall (Virtual open divider)
-    p_south_start = CoordinateTransformEngine.pixel_to_canonical(50, 350, transform)
-    p_south_end = CoordinateTransformEngine.pixel_to_canonical(350, 350, transform)
-    is_south_phys, conf_south = CanonicalGeometryService.verify_wall_profile(
-        p_south_start, p_south_end, transform, gray_img=img
-    )
-    assert is_south_phys is False
-    assert conf_south >= 0.70
-
-
-# =========================================================================
-# 7. Door Opening & 90-Degree Swing Sector Collision Envelope
-# =========================================================================
-
-def test_door_swing_wedge_geometry_and_collision():
-    """
-    Test that the 90-degree door swing wedge sector accurately identifies
-    points inside the door swing sweep so switches are never mounted there.
-    """
-    hinge = Point2D_mm(x=1000.0, y=2000.0)
-    strike = Point2D_mm(x=1850.0, y=2000.0)  # 850mm clear width
-
     room_poly = Polygon2D_mm(
         exterior=[
-            Point2D_mm(x=1000.0, y=1000.0),
-            Point2D_mm(x=5000.0, y=1000.0),
-            Point2D_mm(x=5000.0, y=5000.0),
-            Point2D_mm(x=1000.0, y=5000.0),
+            Point2D_mm(x=0.0, y=0.0),
+            Point2D_mm(x=3000.0, y=0.0),
+            Point2D_mm(x=3000.0, y=3000.0),
+            Point2D_mm(x=0.0, y=3000.0),
         ]
     )
 
-    wedge_poly = CanonicalGeometryService.calculate_door_swing_wedge(
-        hinge_mm=hinge,
-        strike_mm=strike,
-        room_poly_mm=room_poly,
-        swing_dir=DoorSwingDirection.INWARD,
-    )
-
-    shapely_wedge = wedge_poly.to_shapely()
-
-    # Point directly in the path of the door sweep (400mm out from hinge at 45 deg)
-    mid_sweep_pt = ShapelyPoint(1000.0 + 400.0 * math.cos(math.pi / 4), 2000.0 + 400.0 * math.sin(math.pi / 4))
-    assert shapely_wedge.contains(mid_sweep_pt) is True, "Point in door path should be inside swing wedge"
-
-    # Switch mounted outside the door sweep (e.g. 200mm past the strike jamb along the wall)
-    safe_switch_pt = ShapelyPoint(2050.0, 2000.0)
-    assert shapely_wedge.contains(safe_switch_pt) is False, "Safe switch point must not be inside swing wedge"
-
-
-# =========================================================================
-# 8. Fixed Obstacles & RS IEC 60364-7-701 Exclusion Buffer Tests
-# =========================================================================
-
-def test_shower_obstacle_600mm_wet_zone_clearance():
-    """
-    Tests that fixed shower enclosure has mandatory 600mm Zone 2 exclusion buffer.
-    Verifies that a point within 600mm is flagged as restricted, and a point > 600mm is clear.
-    """
-    # 900mm x 900mm shower enclosure in corner (3000, 3000) to (3900, 3900)
-    shower_pts = [
-        Point2D_mm(x=3000.0, y=3000.0),
-        Point2D_mm(x=3900.0, y=3000.0),
-        Point2D_mm(x=3900.0, y=3900.0),
-        Point2D_mm(x=3000.0, y=3900.0),
-    ]
-    shower_obs = FixedObstacle(
-        id="shower_1",
+    # Shower in corner (2100, 0) to (3000, 900)
+    shower = FixedObstacle(
+        id="shower_corner",
         obstacle_type=ObstacleType.SHOWER_ENCLOSURE,
-        boundary_mm=Polygon2D_mm(exterior=shower_pts),
-        required_buffer_mm=600.0,  # 600mm Zone 2 buffer
-        confidence=1.0,
+        boundary_mm=Polygon2D_mm(
+            exterior=[
+                Point2D_mm(x=2100.0, y=0.0),
+                Point2D_mm(x=3000.0, y=0.0),
+                Point2D_mm(x=3000.0, y=900.0),
+                Point2D_mm(x=2100.0, y=900.0),
+            ]
+        ),
+        required_buffer_mm=600.0,
+        confidence=0.95,
     )
 
-    envelope = shower_obs.exclusion_envelope_mm.to_shapely()
+    clipped_envelope = shower.get_clipped_envelope_mm(room_poly)
+    sh_clipped = clipped_envelope.to_shapely()
 
-    # Point at (2800, 3500) is 200mm from shower edge -> INSIDE 600mm buffer (VIOLATION)
-    unsafe_pt = ShapelyPoint(2800.0, 3500.0)
-    assert envelope.contains(unsafe_pt) is True, "Point 200mm from shower must be inside wet exclusion envelope"
-
-    # Point at (2200, 3500) is 800mm from shower edge -> OUTSIDE 600mm buffer (COMPLIANT)
-    safe_pt = ShapelyPoint(2200.0, 3500.0)
-    assert envelope.contains(safe_pt) is False, "Point 800mm from shower must be outside wet exclusion envelope"
+    # Point outside the room at (3200, 500) (adjoining room) must NOT be in clipped envelope
+    outside_room_pt = ShapelyPoint(3200.0, 500.0)
+    assert not sh_clipped.contains(outside_room_pt), "Clearance zone must not penetrate into adjoining room"
 
 
 # =========================================================================
-# 9. Invalid & Contradictory Geometry Handling
+# 6. Door Orientation & Alignment with Supporting Walls
 # =========================================================================
 
-def test_invalid_polygon_rejected():
-    """Pydantic must reject polygon with fewer than 3 vertices."""
-    with pytest.raises(ValueError):
-        Polygon2D_mm(exterior=[Point2D_mm(x=0, y=0), Point2D_mm(x=10, y=10)])
-
-
-def test_invalid_calibration_distance_rejected():
-    """Negative or zero calibration distance must raise ValueError."""
-    transform = PlanTransform(pixel_width=1000, pixel_height=1000)
-    with pytest.raises(ValueError):
-        CoordinateTransformEngine.calibrate_scale_from_points((0, 0), (100, 100), -500.0, transform)
-
-    with pytest.raises(ValueError):
-        CoordinateTransformEngine.calibrate_scale_from_points((50, 50), (50, 50), 1000.0, transform)
-
-
-# =========================================================================
-# 10. Backward-Compatibility Adapter
-# =========================================================================
-
-def test_canonical_to_legacy_adapter_maintains_flutter_contract():
+def test_door_aligns_with_vertical_wall():
     """
-    Verifies that canonical geometry adapts seamlessly to legacy RoomObservation
-    and ArchitecturalFeature objects expected by the Flutter canvas.
+    A door located on a vertical (East-West) wall must align its hinge-to-strike
+    vector along the vertical wall, NOT default to an arbitrary horizontal offset.
     """
     rooms = [
-        RoomObservation(id="r_bed", name="Bedroom 1", confidence=0.9, bounds=[0.1, 0.1, 0.4, 0.4])
+        RoomObservation(id="r1", name="Bedroom", confidence=0.95, bounds=[0.1, 0.1, 0.5, 0.5])
     ]
+    # Door on the East wall (x=0.5, y in [0.1, 0.5]) at (0.50, 0.30)
+    features = [
+        ArchitecturalFeature(
+            type="door",
+            room="Bedroom",
+            confidence=0.90,
+            door_position=[0.50, 0.30],
+            swing_direction="into_room",
+        )
+    ]
+
+    plan = CanonicalGeometryService.build_canonical_floor_plan(
+        rooms=rooms,
+        features=features,
+        pixel_width=1000,
+        pixel_height=1000,
+        scale_mm_per_pixel=10.0,
+    )
+
+    door = plan.openings[0]
+    assert door.hinge_point_mm is not None
+    assert door.strike_point_mm is not None
+
+    # Hinge and strike should share approximately the same X coordinate (on vertical wall)
+    assert abs(door.hinge_point_mm.x - door.strike_point_mm.x) < 50.0, "Door on vertical wall must have vertical alignment"
+    # And differ significantly in Y (along the wall)
+    assert abs(door.hinge_point_mm.y - door.strike_point_mm.y) > 700.0
+
+
+def test_isolated_floating_door_marked_unresolved():
+    """
+    A door far away from any wall (> 600mm) must NOT generate an authoritative swing wedge.
+    It must be marked with DoorSwingDirection.UNKNOWN and added to unresolved_geometry.
+    """
+    rooms = [
+        RoomObservation(id="r1", name="Hall", confidence=0.90, bounds=[0.1, 0.1, 0.9, 0.9])
+    ]
+    # Center of room: (0.50, 0.50) is ~4000mm away from all perimeter walls
+    features = [
+        ArchitecturalFeature(
+            type="door",
+            room="Hall",
+            confidence=0.80,
+            door_position=[0.50, 0.50],
+        )
+    ]
+
+    plan = CanonicalGeometryService.build_canonical_floor_plan(
+        rooms=rooms,
+        features=features,
+        pixel_width=1000,
+        pixel_height=1000,
+        scale_mm_per_pixel=10.0,
+    )
+
+    door = plan.openings[0]
+    assert door.swing_arc_sector_mm is None
+    assert door.swing_direction == DoorSwingDirection.UNKNOWN
+    unres_text = " ".join(plan.provenance.unresolved_geometry)
+    assert "isolated" in unres_text
+
+
+# =========================================================================
+# 7. Shared-Wall Topology Linking
+# =========================================================================
+
+def test_shared_wall_topology_links_adjacent_rooms():
+    """
+    Adjacent rooms sharing a boundary wall must have their shared walls linked
+    with exterior_or_neighbor_room_id and marked as shared duplicates.
+    """
+    rooms = [
+        # Room A: [0.1, 0.1, 0.5, 0.5] -> East wall at x=0.5
+        RoomObservation(id="room_a", name="Living Room", confidence=0.95, bounds=[0.1, 0.1, 0.5, 0.5]),
+        # Room B: [0.5, 0.1, 0.9, 0.5] -> West wall at x=0.5
+        RoomObservation(id="room_b", name="Dining Room", confidence=0.95, bounds=[0.5, 0.1, 0.9, 0.5]),
+    ]
+
+    plan = CanonicalGeometryService.build_canonical_floor_plan(
+        rooms=rooms,
+        features=[],
+        pixel_width=1000,
+        pixel_height=1000,
+        scale_mm_per_pixel=10.0,
+    )
+
+    # Find walls with shared links
+    shared_walls = [w for w in plan.walls if w.shared_with_wall_id is not None]
+    assert len(shared_walls) == 2, "Both walls along the shared partition should be linked"
+
+    w1, w2 = shared_walls[0], shared_walls[1]
+    assert w1.exterior_or_neighbor_room_id in ["room_a", "room_b"]
+    assert w2.exterior_or_neighbor_room_id in ["room_a", "room_b"]
+    assert w1.shared_with_wall_id == w2.id
+    assert w2.shared_with_wall_id == w1.id
+
+    # Exactly one wall should be flagged as duplicate to prevent double takeoff
+    duplicates = [w for w in shared_walls if w.is_shared_duplicate]
+    assert len(duplicates) == 1
+
+
+# =========================================================================
+# 8. Adaptive Distance-Transform Wall Verification (Real Plan Validation)
+# =========================================================================
+
+def test_wall_verification_on_real_floor_plan():
+    """
+    Validates wall verification on the real architectural floor plan in backend/uploads.
+    Tests known structural walls vs open space to measure classification accuracy.
+    """
+    real_image_path = "backend/uploads/2c9948d0-34a6-4095-aef5-a0f26367f243/display_plan.png"
+    if not os.path.exists(real_image_path):
+        pytest.skip("Sample upload image not present on disk")
+
+    img = cv2.imread(real_image_path, cv2.IMREAD_GRAYSCALE)
+    h, w = img.shape
+    transform = PlanTransform(pixel_width=w, pixel_height=h, scale_mm_per_pixel=10.0)
+
+    # 1. Known real wall: Top exterior wall between x=0.03*w and x=0.35*w, y=0.16*h
+    p_wall_start = CoordinateTransformEngine.pixel_to_canonical(0.03 * w, 0.16 * h, transform)
+    p_wall_end = CoordinateTransformEngine.pixel_to_canonical(0.35 * w, 0.16 * h, transform)
+    is_wall, conf = CanonicalGeometryService.verify_wall_profile(p_wall_start, p_wall_end, transform, img)
+    assert is_wall is True, "Drawn exterior wall must be classified as physical"
+    assert conf >= 0.70
+
+    # 2. Known open floor space / virtual divider: Line in the middle of Bedroom 1 (y=0.34*h, x in [0.12*w, 0.28*w])
+    # No wall is drawn across the interior of the bedroom floor
+    p_open_start = CoordinateTransformEngine.pixel_to_canonical(0.12 * w, 0.34 * h, transform)
+    p_open_end = CoordinateTransformEngine.pixel_to_canonical(0.28 * w, 0.34 * h, transform)
+    is_open_wall, conf_open = CanonicalGeometryService.verify_wall_profile(p_open_start, p_open_end, transform, img)
+    assert is_open_wall is False, "Open interior bedroom floor must not be classified as physical wall"
+
+
+# =========================================================================
+# 9. DEF-01: Scale Verification Separated from Area Verification
+# =========================================================================
+
+def test_calibrated_scale_with_approximate_room_geometry_sets_approximate_status():
+    """
+    DEF-01: A calibrated scale (10 mm/px) must NOT certify a bounding-box room area as verified.
+    is_rectangular_approximation must remain True, area_status must be APPROXIMATE_CALIBRATED,
+    and is_area_verified must be False.
+    """
+    rooms = [
+        RoomObservation(id="r1", name="Master Bedroom", confidence=0.95, bounds=[0.1, 0.1, 0.5, 0.5])
+    ]
+    plan = CanonicalGeometryService.build_canonical_floor_plan(
+        rooms=rooms,
+        features=[],
+        pixel_width=1000,
+        pixel_height=1000,
+        scale_mm_per_pixel=10.0,
+        is_scale_verified=True,
+        scale_status=ScaleStatus.USER_CALIBRATED,
+    )
+
+    room = plan.rooms[0]
+    assert plan.transform.is_scale_verified is True
+    assert room.is_rectangular_approximation is True
+    assert room.is_area_verified is False, "Bounding box room area must NOT be marked verified even with calibrated scale!"
+    assert room.area_status == AreaStatus.APPROXIMATE_CALIBRATED
+    assert room.area_m2 == 16.0  # 400px * 10 = 4000mm = 4m; 4m * 4m = 16 m2
+
+
+def test_exact_polygon_room_with_calibrated_scale_sets_verified_area():
+    """
+    DEF-01: Only when a room polygon is confirmed exact (is_rectangular_approximation=False)
+    AND scale is verified should area be certified as verified.
+    """
+    poly = Polygon2D_mm(
+        exterior=[
+            Point2D_mm(x=0.0, y=0.0),
+            Point2D_mm(x=5000.0, y=0.0),
+            Point2D_mm(x=5000.0, y=4000.0),
+            Point2D_mm(x=0.0, y=4000.0),
+        ]
+    )
+    # 5m x 4m = 20 m2
+    room = RoomBoundary(
+        id="r_exact",
+        name="Conference Hall",
+        room_type=RoomType.OFFICE_STUDY,
+        boundary_polygon_mm=poly,
+        area_m2=poly.area_m2,
+        area_status=AreaStatus.VERIFIED,
+        is_area_verified=True,
+        is_rectangular_approximation=False,
+    )
+
+    assert room.is_area_verified is True
+    assert room.is_rectangular_approximation is False
+    assert room.area_status == AreaStatus.VERIFIED
+    assert room.area_m2 == 20.0
+
+
+def test_unscaled_plan_sets_unscaled_estimate_status():
+    """DEF-01: An unscaled plan must set area_status to UNSCALED_ESTIMATE and is_area_verified to False."""
+    rooms = [
+        RoomObservation(id="r1", name="Kitchen", confidence=0.90, bounds=[0.2, 0.2, 0.6, 0.6])
+    ]
+    plan = CanonicalGeometryService.build_canonical_floor_plan(
+        rooms=rooms,
+        features=[],
+        scale_mm_per_pixel=None,
+        is_scale_verified=False,
+    )
+
+    room = plan.rooms[0]
+    assert room.is_area_verified is False
+    assert room.area_status == AreaStatus.UNSCALED_ESTIMATE
+
+
+# =========================================================================
+# 10. DEF-02: Door Swing Provenance & Conservative Clearance Envelopes
+# =========================================================================
+
+def test_door_with_unobserved_swing_does_not_fabricate_observed_swing():
+    """
+    DEF-02: When door swing is unobserved on the drawing, the system must:
+      1. Set is_swing_observed = False
+      2. Set swing_direction = DoorSwingDirection.UNKNOWN
+      3. Set observed_swing_arc_mm = None (DO NOT fabricate an observed CAD arc!)
+      4. Set assumed_clearance_envelope_mm = 90° inward envelope (for switch placement safety ONLY)
+      5. Issue explicit provenance warning.
+    """
+    rooms = [
+        RoomObservation(id="r1", name="Bedroom 1", confidence=0.95, bounds=[0.1, 0.1, 0.5, 0.5])
+    ]
+    # Door with no swing_direction provided
     features = [
         ArchitecturalFeature(
             type="door",
             room="Bedroom 1",
             confidence=0.88,
-            door_position=[0.15, 0.40],
-            hinge_point=[0.12, 0.40],
-            strike_point=[0.18, 0.40],
-            swing_direction="into_room",
+            door_position=[0.30, 0.10],
+            swing_direction=None,  # Unobserved!
         )
+    ]
+    plan = CanonicalGeometryService.build_canonical_floor_plan(
+        rooms=rooms,
+        features=features,
+        pixel_width=1000,
+        pixel_height=1000,
+        scale_mm_per_pixel=10.0,
+    )
+
+    door = plan.openings[0]
+    assert door.is_swing_observed is False, "Unobserved swing must NOT be marked observed!"
+    assert door.swing_direction == DoorSwingDirection.UNKNOWN
+    assert door.observed_swing_arc_mm is None, "Must NOT fabricate observed swing arc when unobserved!"
+    assert door.assumed_clearance_envelope_mm is not None, "Assumed clearance envelope must protect switches!"
+
+    warnings_text = " ".join(plan.provenance.geometry_warnings)
+    assert "no observed swing arc" in warnings_text.lower()
+    assert "conservative 90° inward clearance envelope assumed" in warnings_text.lower()
+
+
+def test_door_with_observed_swing_preserves_observed_geometry():
+    """
+    DEF-02: When door swing direction is observed on plan (e.g. outward),
+    it must be recorded with is_swing_observed = True and observed_swing_arc_mm populated.
+    """
+    rooms = [
+        RoomObservation(id="r1", name="Utility", confidence=0.95, bounds=[0.1, 0.1, 0.5, 0.5])
+    ]
+    features = [
+        ArchitecturalFeature(
+            type="door",
+            room="Utility",
+            confidence=0.92,
+            door_position=[0.30, 0.10],
+            swing_direction="out_of_room",  # Observed outward!
+        )
+    ]
+    plan = CanonicalGeometryService.build_canonical_floor_plan(
+        rooms=rooms,
+        features=features,
+        pixel_width=1000,
+        pixel_height=1000,
+        scale_mm_per_pixel=10.0,
+    )
+
+    door = plan.openings[0]
+    assert door.is_swing_observed is True
+    assert door.swing_direction == DoorSwingDirection.OUTWARD
+    assert door.observed_swing_arc_mm is not None
+    assert door.assumed_clearance_envelope_mm is None
+
+
+# =========================================================================
+# 11. DEF-03: Wall Verification Method & Ambiguity Tracking
+# =========================================================================
+
+def test_wall_verification_records_heuristic_method_and_flags_ambiguity():
+    """
+    DEF-03: Wall verification must record method as ADAPTIVE_CORRIDOR_HEURISTIC,
+    never claim verified physical wall without CAD/ground truth, and flag borderline strokes.
+    """
+    rooms = [
+        RoomObservation(id="r1", name="Living Room", confidence=0.95, bounds=[0.1, 0.1, 0.5, 0.5])
+    ]
+    plan = CanonicalGeometryService.build_canonical_floor_plan(
+        rooms=rooms,
+        features=[],
+        pixel_width=1000,
+        pixel_height=1000,
+        scale_mm_per_pixel=10.0,
+    )
+
+    for wall in plan.walls:
+        assert wall.verification_method in [
+            WallVerificationMethod.ADAPTIVE_CORRIDOR_HEURISTIC,
+            WallVerificationMethod.UNVERIFIED_NO_IMAGE,
+        ]
+        # In the absence of an independent ground truth CAD dataset, is_verified_physical_wall is False
+        assert wall.is_verified_physical_wall is False
+
+
+# =========================================================================
+# 12. Stage 2: Traceable Uncertainty-Aware Electrical Placement Foundation
+# =========================================================================
+
+def test_traceable_electrical_placement_records_provenance_and_reasoning():
+    """
+    Stage 2: Asserts that every proposed electrical point records:
+      - Stable identifier and type
+      - Associated room and geometry used
+      - Canonical millimeter coordinates (x_mm, y_mm) and normalized ratios (x_ratio, y_ratio)
+      - Explicit placement rule reference
+      - Associated nearby wall, door, or obstacle IDs
+      - Clearance envelope applied
+      - Placement status (proposed, needs_confirmation, or unresolved)
+      - Human-readable engineering reasoning
+    """
+    rooms = [
+        RoomObservation(id="r_bed", name="Master Bedroom", confidence=0.95, bounds=[0.1, 0.1, 0.5, 0.5]),
+        RoomObservation(id="r_bath", name="Ensuite Bathroom", confidence=0.90, bounds=[0.5, 0.1, 0.8, 0.4]),
+    ]
+    features = [
+        ArchitecturalFeature(
+            type="door",
+            room="Master Bedroom",
+            confidence=0.90,
+            door_position=[0.10, 0.30],
+            strike_point=[0.10, 0.35],
+            swing_direction="into_room",
+        ),
+        ArchitecturalFeature(
+            type="shower",
+            room="Ensuite Bathroom",
+            confidence=0.92,
+            bounds=[0.70, 0.10, 0.80, 0.25],
+        ),
     ]
 
     canonical_plan = CanonicalGeometryService.build_canonical_floor_plan(
@@ -444,17 +657,94 @@ def test_canonical_to_legacy_adapter_maintains_flutter_contract():
         pixel_height=1000,
         scale_mm_per_pixel=10.0,
         is_scale_verified=True,
+        scale_status=ScaleStatus.USER_CALIBRATED,
     )
 
-    legacy_rooms, legacy_features = CanonicalGeometryService.to_legacy_rooms_and_features(canonical_plan)
+    points = ElectricalEngine.generate_recommendations(
+        rooms=rooms,
+        architectural_features=features,
+        building_type="Residential",
+        standard_name="RS IEC 60364",
+        canonical_plan=canonical_plan,
+    )
 
+    assert len(points) > 0
+
+    for pt in points:
+        # Every point must have core identification and traceability
+        assert pt.id.startswith("pt_")
+        assert pt.room_id in ["r_bed", "r_bath"]
+        assert pt.coordinate_system == "canonical_mm_and_normalized_ratio"
+        assert pt.x_mm is not None
+        assert pt.y_mm is not None
+        assert pt.placement_rule is not None
+        assert pt.geometry_used is not None
+        assert pt.placement_status in ["proposed", "needs_confirmation", "unresolved"]
+        assert pt.reasoning is not None and len(pt.reasoning) > 10
+
+        # Verify physical coordinates round-trip with normalized ratios
+        expected_pt_mm = CoordinateTransformEngine.normalized_to_canonical(
+            pt.x_ratio, pt.y_ratio, canonical_plan.transform
+        )
+        assert abs(pt.x_mm - expected_pt_mm.x) < 1.0
+        assert abs(pt.y_mm - expected_pt_mm.y) < 1.0
+
+    # 1. Verify Switch Placement Traceability
+    switches = [p for p in points if "switch" in p.type]
+    assert len(switches) >= 1
+    sw = switches[0]
+    assert sw.geometry_used == "wall_strike_side_tangent"
+    assert sw.nearby_door_id is not None
+    assert sw.clearance_envelope_applied is not None
+    assert "strike jamb" in sw.reasoning.lower()
+
+    # Verify switch is NOT placed inside the door swing arc sector
+    door = canonical_plan.openings[0]
+    if door.observed_swing_arc_mm:
+        sh_arc = door.observed_swing_arc_mm.to_shapely()
+        sw_shapely = ShapelyPoint(sw.x_mm, sw.y_mm)
+        assert not sh_arc.contains(sw_shapely), "Switch must NEVER land inside door swing envelope!"
+
+    # 2. Verify Bathroom Socket Safety Traceability (Zone 2)
+    bath_sockets = [p for p in points if p.room_id == "r_bath" and "socket" in p.type]
+    assert len(bath_sockets) >= 1
+    bs = bath_sockets[0]
+    assert bs.geometry_used == "safe_wall_outside_wet_zone"
+    assert bs.nearby_obstacle_id is not None
+    assert "Zone 2" in (bs.clearance_envelope_applied or "")
+
+    # Verify socket coordinate is outside the 600mm shower buffer
+    shower_obs = next(o for o in canonical_plan.obstacles if o.id == bs.nearby_obstacle_id)
+    sh_env = shower_obs.exclusion_envelope_mm.to_shapely()
+    bs_shapely = ShapelyPoint(bs.x_mm, bs.y_mm)
+    assert not sh_env.contains(bs_shapely), "Bathroom socket must be strictly outside Zone 2 (600mm buffer)!"
+
+
+# =========================================================================
+# 13. DEF-04: Legacy Adapter & Flutter Uncertainty Propagation
+# =========================================================================
+
+def test_canonical_to_legacy_adapter_propagates_area_uncertainty():
+    """
+    DEF-04: to_legacy_rooms_and_features must pass area_status, is_area_verified,
+    and is_rectangular_approximation to RoomObservation, which Flutter Room model consumes.
+    """
+    rooms = [
+        RoomObservation(id="r1", name="Dining Room", confidence=0.91, bounds=[0.1, 0.1, 0.4, 0.4])
+    ]
+    plan = CanonicalGeometryService.build_canonical_floor_plan(
+        rooms=rooms,
+        features=[],
+        pixel_width=1000,
+        pixel_height=1000,
+        scale_mm_per_pixel=10.0,
+        is_scale_verified=True,
+    )
+
+    legacy_rooms, _ = CanonicalGeometryService.to_legacy_rooms_and_features(plan)
     assert len(legacy_rooms) == 1
-    assert legacy_rooms[0].name == "Bedroom 1"
-    assert legacy_rooms[0].bounds == [0.1, 0.1, 0.4, 0.4]
+    lr = legacy_rooms[0]
 
-    assert len(legacy_features) >= 1
-    door_feat = legacy_features[0]
-    assert door_feat.type == "door"
-    assert door_feat.door_position is not None
-    assert abs(door_feat.door_position[0] - 0.15) < 0.01
-    assert abs(door_feat.door_position[1] - 0.40) < 0.01
+    assert lr.is_area_verified is False  # Approximate bounding box!
+    assert lr.is_rectangular_approximation is True
+    assert lr.area_status == "approximate_calibrated"

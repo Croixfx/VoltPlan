@@ -11,6 +11,15 @@ class RoomObservation(BaseModel):
         None,
         description="Normalized bounding box [x1, y1, x2, y2] within 0.0 - 1.0 coordinates",
     )
+    is_area_verified: bool = Field(False, description="True ONLY if scale and true geometry are confirmed")
+    is_rectangular_approximation: bool = Field(
+        False,
+        description="True if polygon is a bounding box approximation rather than verified contour",
+    )
+    area_status: str = Field(
+        "unscaled_estimate",
+        description="Status of room area: verified, approximate_calibrated, unscaled_estimate, or unresolved",
+    )
 
 
 class ArchitecturalFeature(BaseModel):

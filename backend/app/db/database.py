@@ -33,13 +33,20 @@ def init_db():
 
     Base.metadata.create_all(bind=engine)
 
-    # Ensure canonical_geometry_data column exists on analyses table for SQLite
+    # Lightweight additive column migrations for existing SQLite databases
+    additions = {
+        "analyses": {"canonical_geometry_data": "JSON"},
+        "projects": {"scale_mm_per_pixel": "FLOAT", "scale_calibration": "JSON"},
+    }
     try:
         with engine.connect() as conn:
-            result = conn.execute(text("PRAGMA table_info(analyses)"))
-            cols = [row[1] for row in result.fetchall()]
-            if cols and "canonical_geometry_data" not in cols:
-                conn.execute(text("ALTER TABLE analyses ADD COLUMN canonical_geometry_data JSON"))
-                conn.commit()
+            for table, columns in additions.items():
+                existing = [row[1] for row in conn.execute(text(f"PRAGMA table_info({table})")).fetchall()]
+                if not existing:
+                    continue
+                for name, ddl in columns.items():
+                    if name not in existing:
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+            conn.commit()
     except Exception:
         pass

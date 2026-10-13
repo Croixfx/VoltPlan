@@ -450,6 +450,8 @@ class _ElectricalPlanCanvasScreenState
                     const SizedBox(width: 6),
                     _buildLayerTab('power', 'Power Sockets', isDark),
                     const SizedBox(width: 6),
+                    _buildLayerTab('safety', 'Safety & Comms', isDark),
+                    const SizedBox(width: 6),
                     _buildLayerTab('distribution', 'Main DB', isDark),
                   ],
                 ),

@@ -14,51 +14,67 @@ from app.schemas.canonical_geometry import (
 
 class CoordinateTransformEngine:
     """
-    Bidirectional coordinate transformation engine for VoltPlan.
+    Standardized Affine 2D Coordinate Transformation Engine for VoltPlan.
     Converts strictly between:
-      1. Source Image Pixels (px)
+      1. Source Image Pixels (continuous px, where [0, W] x [0, H] spans the image extent)
       2. Normalized Display Coordinates [0.0, 1.0] (for Flutter Canvas)
       3. Canonical Physical Millimeters (mm)
-      4. Vector CAD coordinates (meters / mm)
+      4. Vector CAD coordinates (Cartesian bottom-left origin)
 
     Guarantees:
-      - Sub-millimeter and sub-pixel round-trip accuracy (< 0.01 mm / < 0.001 norm).
-      - Strict scale verification gate: uncalibrated plans cannot claim verified physical scale.
-      - Supports non-standard origins (top-left vs bottom-left Cartesian) and rotation (0, 90, 180, 270 deg).
+      - Rigorous affine matrix transformations for rectangular images (W != H).
+      - Bounding box dimension swapping on right-angle rotations (90°, 270°: W' = H, H' = W).
+      - Correct origin inversion accounting for post-rotation coordinate frames.
+      - Scale verification gating: uncalibrated plans remain explicitly unverified.
+      - Rejection of degenerate calibration distances (< 5.0 px, <= 0.0 mm).
     """
 
     @staticmethod
+    def _compute_frame_dimensions(w: float, h: float, rot: float) -> Tuple[float, float]:
+        """Calculates destination frame dimensions (W', H') after rotation."""
+        rot_norm = rot % 360.0
+        if abs(rot_norm - 90.0) < 1e-4 or abs(rot_norm - 270.0) < 1e-4:
+            return (h, w)
+        return (w, h)
+
+    @classmethod
     def pixel_to_canonical(
+        cls,
         px: float,
         py: float,
         transform: PlanTransform,
     ) -> Point2D_mm:
         """
         Converts raster pixel coordinate (px, py) to canonical physical millimeters (mm).
-        Accounts for origin (top-left vs bottom-left Cartesian) and clockwise rotation.
+        Uses continuous affine coordinate transformations with exact frame dimension tracking.
         """
         w = float(transform.pixel_width)
         h = float(transform.pixel_height)
-
-        # 1. Handle rotation (clockwise around image center)
         rot = transform.rotation_deg % 360.0
+
+        # 1. Continuous rotation transformation
+        # Bounding box aligned right-angle rotations
         if abs(rot - 90.0) < 1e-4:
-            # 90 deg CW: (x, y) -> (h - 1 - y, x)
-            px_rot = h - 1.0 - py
+            # 90 deg CW: (px, py) in [0, W]x[0, H] -> (H - py, px) in [0, H]x[0, W]
+            px_rot = h - py
             py_rot = px
+            dest_w, dest_h = h, w
         elif abs(rot - 180.0) < 1e-4:
-            # 180 deg CW: (x, y) -> (w - 1 - x, h - 1 - y)
-            px_rot = w - 1.0 - px
-            py_rot = h - 1.0 - py
+            # 180 deg CW: (px, py) in [0, W]x[0, H] -> (W - px, H - py) in [0, W]x[0, H]
+            px_rot = w - px
+            py_rot = h - py
+            dest_w, dest_h = w, h
         elif abs(rot - 270.0) < 1e-4:
-            # 270 deg CW: (x, y) -> (y, w - 1 - x)
+            # 270 deg CW: (px, py) in [0, W]x[0, H] -> (py, W - px) in [0, H]x[0, W]
             px_rot = py
-            py_rot = w - 1.0 - px
+            py_rot = w - px
+            dest_w, dest_h = h, w
         elif abs(rot) < 1e-4:
             px_rot = px
             py_rot = py
+            dest_w, dest_h = w, h
         else:
-            # Arbitrary rotation about center
+            # Arbitrary rotation about image center (cx, cy)
             cx, cy = w / 2.0, h / 2.0
             rad = math.radians(rot)
             cos_a = math.cos(rad)
@@ -67,10 +83,12 @@ class CoordinateTransformEngine:
             dy = py - cy
             px_rot = cx + (dx * cos_a - dy * sin_a)
             py_rot = cy + (dx * sin_a + dy * cos_a)
+            dest_w, dest_h = w, h
 
         # 2. Origin adjustment: raster is top-left (+Y down); CAD is bottom-left (+Y up)
+        # Note: Must use dest_h (destination frame height), which is W if rotated 90/270 deg!
         if transform.origin == CoordinateOrigin.BOTTOM_LEFT:
-            py_rot = h - py_rot
+            py_rot = dest_h - py_rot
 
         # 3. Physical scale mapping (mm per pixel)
         scale = transform.scale_mm_per_pixel if transform.scale_mm_per_pixel is not None else 1.0
@@ -80,38 +98,47 @@ class CoordinateTransformEngine:
 
         return Point2D_mm(x=round(x_mm, 2), y=round(y_mm, 2))
 
-    @staticmethod
+    @classmethod
     def canonical_to_pixel(
+        cls,
         pt: Point2D_mm,
         transform: PlanTransform,
     ) -> Tuple[float, float]:
         """
         Converts canonical physical millimeters (mm) back to source raster pixels (px).
-        Inverts origin and rotation transforms.
+        Strict inverse of pixel_to_canonical.
         """
         w = float(transform.pixel_width)
         h = float(transform.pixel_height)
         scale = transform.scale_mm_per_pixel if transform.scale_mm_per_pixel is not None else 1.0
+        rot = transform.rotation_deg % 360.0
+
+        # Destination frame dimensions
+        if abs(rot - 90.0) < 1e-4 or abs(rot - 270.0) < 1e-4:
+            dest_w, dest_h = h, w
+        else:
+            dest_w, dest_h = w, h
 
         # 1. Unscale from mm to rotated pixels
         px_rot = (pt.x - transform.offset_x_mm) / scale
         py_rot = (pt.y - transform.offset_y_mm) / scale
 
-        # 2. Invert origin
+        # 2. Invert origin in destination frame
         if transform.origin == CoordinateOrigin.BOTTOM_LEFT:
-            py_rot = h - py_rot
+            py_rot = dest_h - py_rot
 
-        # 3. Invert rotation (counter-clockwise)
-        rot = transform.rotation_deg % 360.0
+        # 3. Invert rotation
         if abs(rot - 90.0) < 1e-4:
-            # Invert 90 CW: px = py_rot, py = h - 1.0 - px_rot
+            # Invert 90 deg CW: px = py_rot, py = H - px_rot
             px = py_rot
-            py = h - 1.0 - px_rot
+            py = h - px_rot
         elif abs(rot - 180.0) < 1e-4:
-            px = w - 1.0 - px_rot
-            py = h - 1.0 - py_rot
+            # Invert 180 deg CW: px = W - px_rot, py = H - py_rot
+            px = w - px_rot
+            py = h - py_rot
         elif abs(rot - 270.0) < 1e-4:
-            px = w - 1.0 - py_rot
+            # Invert 270 deg CW: px = W - py_rot, py = px_rot
+            px = w - py_rot
             py = px_rot
         elif abs(rot) < 1e-4:
             px = px_rot
@@ -195,28 +222,40 @@ class CoordinateTransformEngine:
         p2_px: Tuple[float, float],
         physical_distance_mm: float,
         transform: PlanTransform,
-        source: ScaleStatus = ScaleStatus.CALIBRATED_DIMENSION,
+        source: ScaleStatus = ScaleStatus.USER_CALIBRATED,
     ) -> PlanTransform:
         """
-        Calibrates scale factor (mm/pixel) using two known pixel locations and the real-world mm distance.
-        Example: Dimension line OCR specifies 4000mm between two tick marks.
+        Calibrates scale factor (mm/pixel) using two verified pixel reference locations.
+        Rejects degenerate distances (< 5.0 px, <= 0.0 mm).
+        Records image width and height at time of calibration for invalidation checks.
         """
         if physical_distance_mm <= 0.0:
-            raise ValueError(f"Physical distance must be positive, got {physical_distance_mm} mm")
+            raise ValueError(f"Physical distance must be strictly positive, got {physical_distance_mm} mm")
 
         pixel_dist = math.hypot(p2_px[0] - p1_px[0], p2_px[1] - p1_px[1])
-        if pixel_dist < 1.0:
-            raise ValueError("Reference points are too close (< 1 pixel) to reliably establish scale")
+        if pixel_dist < 5.0:
+            raise ValueError(
+                f"Reference points are too close ({pixel_dist:.1f} px < 5.0 px) to reliably establish scale. "
+                "Select two distant landmark points for calibration."
+            )
 
         scale_mm_per_pixel = physical_distance_mm / pixel_dist
         ratio_str = f"1 px = {scale_mm_per_pixel:.2f} mm ({pixel_dist:.1f}px = {physical_distance_mm:.0f}mm)"
+
+        is_verified = source in [
+            ScaleStatus.CALIBRATED_DIMENSION,
+            ScaleStatus.USER_CALIBRATED,
+            ScaleStatus.CAD_METADATA,
+        ]
 
         return transform.model_copy(
             update={
                 "scale_mm_per_pixel": round(scale_mm_per_pixel, 4),
                 "scale_status": source,
                 "scale_ratio_str": ratio_str,
-                "is_scale_verified": (source in [ScaleStatus.CALIBRATED_DIMENSION, ScaleStatus.USER_CALIBRATED, ScaleStatus.CAD_METADATA]),
+                "is_scale_verified": is_verified,
+                "calibrated_image_width": transform.pixel_width,
+                "calibrated_image_height": transform.pixel_height,
             }
         )
 
@@ -229,9 +268,8 @@ class CoordinateTransformEngine:
     ) -> PlanTransform:
         """
         Calibrates scale from an architectural ratio (e.g. 1:100, 1:50) and image DPI.
-        Formula: 1 inch = 25.4 mm.
-        1 pixel = (25.4 / DPI) mm on paper.
-        In the real world: 1 pixel = (25.4 / DPI) * ratio_denominator mm.
+        NOTE: Unless backed by vector CAD/BIM header metadata, this is an ESTIMATED HEURISTIC,
+        because raster file DPI metadata rarely matches actual physical paper print scaling.
         """
         if ratio_denominator <= 0 or dpi <= 0:
             raise ValueError("Scale denominator and DPI must be strictly positive")
@@ -247,6 +285,8 @@ class CoordinateTransformEngine:
                 "scale_status": status,
                 "scale_ratio_str": ratio_str,
                 "is_scale_verified": is_verified,
+                "calibrated_image_width": transform.pixel_width,
+                "calibrated_image_height": transform.pixel_height,
             }
         )
 

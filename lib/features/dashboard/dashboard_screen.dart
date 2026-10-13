@@ -102,9 +102,12 @@ class DashboardScreen extends StatelessWidget {
 
                 const SizedBox(height: 20),
 
-                // Primary Action: "+ New Project" Card / Button
+                // Primary Action: New Project Card / Button
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: isDark
                         ? AppColors.surfaceDark
@@ -120,7 +123,7 @@ class DashboardScreen extends StatelessWidget {
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: isDark
                               ? AppColors.surfaceSecondaryDark
@@ -130,18 +133,18 @@ class DashboardScreen extends StatelessWidget {
                         child: const Icon(
                           Icons.bolt,
                           color: AppColors.accentBlue,
-                          size: 24,
+                          size: 20,
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Electrical Planning Engine',
+                              'Electrical Engine',
                               style: TextStyle(
-                                fontSize: 15,
+                                fontSize: 14,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: -0.2,
                                 color: isDark
@@ -149,21 +152,11 @@ class DashboardScreen extends StatelessWidget {
                                     : AppColors.textPrimaryLight,
                               ),
                             ),
-                            const SizedBox(height: 3),
-                            Text(
-                              'Upload floor plan & generate full BOQ',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: isDark
-                                    ? AppColors.textSecondaryDark
-                                    : AppColors.textSecondaryLight,
-                              ),
-                            ),
                           ],
                         ),
                       ),
                       AppButton(
-                        label: '+ New Project',
+                        label: 'New Project',
                         onPressed: () {
                           Navigator.push(
                             context,

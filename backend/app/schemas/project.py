@@ -22,6 +22,27 @@ class ProjectUpdate(BaseModel):
     status: Optional[str] = None
 
 
+class ScalePoint(BaseModel):
+    """A point on the plan image as a ratio (0-1) of image width/height."""
+    x_ratio: float = Field(..., ge=0.0, le=1.0)
+    y_ratio: float = Field(..., ge=0.0, le=1.0)
+
+
+class ScaleCalibrationRequest(BaseModel):
+    point_a: ScalePoint
+    point_b: ScalePoint
+    real_distance_mm: float = Field(..., gt=0, le=200_000)
+
+
+class ScaleCalibrationResponse(BaseModel):
+    project_id: str
+    scale_mm_per_pixel: float
+    reference_pixels: float
+    real_distance_mm: float
+    image_width_px: int
+    image_height_px: int
+
+
 class ProjectResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -36,5 +57,7 @@ class ProjectResponse(BaseModel):
     floor_plan_name: Optional[str] = None
     floor_plan_content_type: Optional[str] = None
     floor_plan_size: Optional[int] = None
+    scale_mm_per_pixel: Optional[float] = None
+    is_scale_calibrated: bool = False
     created_at: datetime
     updated_at: datetime

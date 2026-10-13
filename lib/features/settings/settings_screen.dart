@@ -412,7 +412,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           SizedBox(height: 6),
           Text(
-            '1. Create Project with building type and Rwandan standard.\n2. Upload architectural floor plan (PDF, PNG, JPG).\n3. AI Analysis maps rooms, perimeter boundaries, and points.\n4. Review electrical recommendations grouped by room.\n5. Inspect the interactive Electrical Plan canvas with zoom/pan.\n6. Adjust quantities in the BOQ table.\n7. Review cost estimates in RWF and export client report.',
+            '1. Create Project with building type and Rwandan standard.\n2. Upload architectural floor plan (PDF, PNG, JPG).\n3. AI Analysis maps rooms, perimeter boundaries, and points.\n4. Inspect and adjust placements in the Electrical Plan canvas.\n5. Review electrical recommendations and circuits as needed.\n6. Adjust quantities in the BOQ table.\n7. Review cost estimates in RWF and export client report.',
             style: TextStyle(fontSize: 14, height: 1.5),
           ),
         ],

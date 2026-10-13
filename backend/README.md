@@ -78,6 +78,8 @@ pytest -v
 
 - `GET /api/health` — Service health and active AI provider
 - `POST /api/projects` — Create project
+- `PUT /api/projects/{id}/scale` — Calibrate plan scale (two points as image ratios + real distance in mm)
+- `GET /api/projects/{id}/scale` / `DELETE /api/projects/{id}/scale` — Read or clear the calibration
 - `GET /api/projects` — List projects (with search filter)
 - `GET /api/projects/{id}` — Get project by ID
 - `POST /api/projects/{id}/plan` — Upload architectural plan (PDF/PNG/JPG up to 25 MB)
@@ -86,3 +88,19 @@ pytest -v
 - `GET /api/projects/{id}/analysis` — Get latest structured analysis results
 - `GET /api/projects/{id}/boq` — Get dynamic bill of quantities
 - `GET /api/projects/{id}/cost-estimate` — Get cost estimate in RWF
+
+---
+
+## Equipment Catalog
+
+All placeable equipment is declared once in `app/catalog/equipment.py` (`EquipmentSpec`): symbol, mounting,
+default load, cable/protection, circuit class, cable run and BOQ lines with prices. The circuit engine, BOQ
+engine and `GET /api/equipment` read from it.
+
+To add equipment:
+
+1. `register_equipment(EquipmentSpec(...))` in `app/catalog/equipment.py`.
+2. To have it proposed automatically, add a rule in `get_additional_equipment` of the engineering standard
+   (`app/engineering_rules/rs_iec_60364.py`) using `catalog_point(type_id, coord, notes)`.
+3. Add the type to `ElectricalPointType` in `lib/shared/models/electrical_point.dart` and a symbol in
+   `floor_plan_painter.dart`.

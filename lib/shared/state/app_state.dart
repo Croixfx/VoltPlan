@@ -366,6 +366,41 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Calibrates plan scale on the backend. Returns null on success, otherwise
+  /// a user-facing error message.
+  Future<String?> calibrateProjectScale({
+    required String projectId,
+    required double ax,
+    required double ay,
+    required double bx,
+    required double by,
+    required double realDistanceMm,
+  }) async {
+    try {
+      final scale = await _projectRepo.calibrateScale(
+        projectId: projectId,
+        ax: ax,
+        ay: ay,
+        bx: bx,
+        by: by,
+        realDistanceMm: realDistanceMm,
+      );
+      final index = _projects.indexWhere((p) => p.id == projectId);
+      if (index != -1) {
+        _projects[index] = _projects[index].copyWith(scaleMmPerPixel: scale);
+        if (_selectedProject?.id == projectId) {
+          _selectedProject = _projects[index];
+        }
+      }
+      notifyListeners();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   void setProjectFloorPlan(
     String projectId,
     String floorPlanName, {
