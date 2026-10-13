@@ -1,18 +1,29 @@
 # Render Blueprint for the VoltPlan backend (https://render.com/docs/blueprint-spec).
 # Render dashboard > New > Blueprint > pick this repository.
 #
-# CHECK BEFORE APPLYING (not verifiable from the repo): plan names and prices in the Render dashboard.
-# A persistent disk and a database that does not expire need paid plans; the free tier loses uploaded
-# plans on every restart and its database expires.
+# FREE-TIER SETUP for trying the app out. Everything here is on Render's free plans:
 #
-# The same backend/Dockerfile runs unchanged on Railway or Fly.io: set the environment variables below,
-# attach a Postgres database and mount a volume at /app/uploads.
+#   * Web service: free. It spins down after ~15 minutes without traffic, so the first request after a
+#     pause can take about a minute while it wakes up (the app's request timeout is 30-60 s: retry once).
+#   * Uploaded floor plans are stored on the container's temporary disk and are LOST whenever the service
+#     restarts, redeploys or spins down. A project whose plan file has vanished must have its plan
+#     uploaded again before it can be analysed.
+#   * Database: free PostgreSQL, so project data survives restarts of the web service. A free Render
+#     database expires after a limited period (30 days at the time of writing) and is then deleted;
+#     there are no backups. Do not rely on this setup for real client work.
+#
+# CHECK BEFORE APPLYING (not verifiable from the repo): that the plans below are still free in the Render
+# dashboard, which also lists any limit such as one free database per workspace.
+#
+# For real use switch the web service to a paid plan, add a persistent disk mounted at /app/uploads
+# (or move uploads to object storage), and use a paid database. The same backend/Dockerfile runs unchanged
+# on Railway or Fly.io: set the environment variables below and attach a Postgres database.
 
 databases:
   - name: voltplan-db
     databaseName: voltplan
     user: voltplan
-    plan: basic-256mb
+    plan: free
     ipAllowList: []          # private network only
 
 services:
@@ -21,15 +32,12 @@ services:
     runtime: docker
     dockerContext: ./backend
     dockerfilePath: ./backend/Dockerfile
-    plan: starter
+    plan: free
     # Deploy the branch you want to run. Switch to main once it has been merged.
     branch: remediation/phase1-geometry
     healthCheckPath: /api/health
     autoDeploy: false
-    disk:
-      name: voltplan-uploads
-      mountPath: /app/uploads
-      sizeGB: 1
+    # No persistent disk on the free plan: uploads go to the container's temporary /app/uploads.
     envVars:
       - key: DATABASE_URL
         fromDatabase:

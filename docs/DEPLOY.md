@@ -1,8 +1,8 @@
 # Deploying the backend and building the release APK
 
-The backend is a Docker container (`backend/Dockerfile`) that needs **PostgreSQL**, a **persistent volume** for
-uploaded plans, and a few environment variables. `render.yaml` describes all of that for Render; Railway and
-Fly.io work with the same Dockerfile and variables.
+The backend is a Docker container (`backend/Dockerfile`) that needs **PostgreSQL** and a few environment
+variables. `render.yaml` describes it for Render on **free plans** (web service + free Postgres, no disk), which is
+meant for trying the app out; Railway and Fly.io work with the same Dockerfile and variables.
 
 ## 0. What is protected, and what is not
 
@@ -11,7 +11,7 @@ Fly.io work with the same Dockerfile and variables.
 * The key is compiled into the APK, so **anyone who unpacks the APK can read it**. Hand the APK only to people
   who should have access, and rotate the key (redeploy the backend + rebuild the APK) if it leaks.
 * With a real AI provider in production the backend **refuses to start without `API_KEY`**.
-* Plans are stored on the volume and in Postgres: back them up if they matter.
+* On the free setup, uploaded plans live on temporary storage and disappear on every restart (see section 4).
 
 ## 1. Make the API key
 
@@ -26,8 +26,8 @@ Keep it in a password manager. Do not commit it, paste it into chats or put it i
 1. Push the branch you want to run (the blueprint uses `remediation/phase1-geometry`; change `branch:` in
    `render.yaml` to `main` once merged).
 2. Render dashboard → **New → Blueprint** → select this repository → it reads `render.yaml`.
-3. Check the plans/prices it shows (⚠ plan names in `render.yaml` are unverified). A disk and a non-expiring
-   database need paid plans. On the free tier uploaded plans vanish on every restart and the database expires.
+3. Check that the service and the database both show as **Free** (⚠ unverified from here; Render may allow only
+   one free database per workspace). Nothing in this blueprint should have a price.
 4. When prompted, enter **`API_KEY`** (from step 1). Leave `GEMINI_API_KEY` / `OPENAI_API_KEY` empty for now.
 5. Wait for the deploy, then open `https://<service>.onrender.com/api/health`. Expected:
    `{"status":"ok", ... "environment":"production", "ai_provider":"mock" ...}`.
@@ -35,10 +35,25 @@ Keep it in a password manager. Do not commit it, paste it into chats or put it i
 `AI_PROVIDER=mock` returns the same demo rooms for every upload. To read real plans set
 `AI_PROVIDER=gemini` (or `openai`) **and** the matching key in the service's environment, then redeploy.
 
+### Free-tier behaviour to expect
+
+* **Cold starts.** The free web service sleeps after about 15 minutes idle; the first request afterwards can take
+  around a minute. The app times out after 30-60 s, so just retry once.
+* **Plans disappear.** Uploaded floor plans are kept on the container's temporary disk and are deleted when the
+  service restarts, redeploys or sleeps. The project data stays (it is in Postgres), but the plan image does not:
+  upload the plan again before analysing or editing rooms.
+* **The database expires** after a limited time (30 days at the time of writing) and is deleted without a backup.
+
+### Moving to real use
+
+Switch `plan:` of the web service to a paid plan, add a persistent disk
+(`disk: {name: voltplan-uploads, mountPath: /app/uploads, sizeGB: 1}`) or move uploads to object storage, and use a
+paid database.
+
 ### Other hosts
 
 Same image, same variables: `DATABASE_URL` (Postgres), `API_KEY`, `APP_ENV=production`, `DEBUG=False`,
-`AI_PROVIDER`, optional provider keys, and a volume mounted at `/app/uploads`. The container listens on `$PORT`
+`AI_PROVIDER`, optional provider keys, and a persistent volume mounted at `/app/uploads`. The container listens on `$PORT`
 (default 8000) and exposes `/api/health` for health checks. Put it behind HTTPS (hosts do this for you).
 
 ### Verify protection from outside
@@ -91,6 +106,6 @@ storeFile=C:/Users/<you>/voltplan-release.jks
 * One shared key, no per-user accounts or data separation: everyone with the APK sees every project.
 * Database schema changes after the first deploy need migrations (Alembic is not set up); the built-in
   additive migration only runs on SQLite.
-* Uploaded plans live on one disk: a single instance only.
+* Uploaded plans live on the container's disk (temporary on the free setup): a single instance only.
 * The calculations and the cable-capacity tables are still awaiting an electrician's review
   (`docs/CALCULATION_REVIEW.md`); do not present the output as signed-off.
