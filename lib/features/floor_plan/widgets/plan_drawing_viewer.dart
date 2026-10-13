@@ -80,7 +80,7 @@ class _PlanDrawingViewerState extends State<PlanDrawingViewer> {
     } else if (widget.project.floorPlanName != null &&
         widget.project.id.isNotEmpty) {
       final url = ApiEndpoints.projectPlanFile(widget.project.id);
-      _imageProvider = NetworkImage(url);
+      _imageProvider = NetworkImage(url, headers: ApiEndpoints.authHeaders);
       _hasImage = true;
       _hasError = false;
       _resolveAspectRatio();

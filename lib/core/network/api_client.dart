@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'api_endpoints.dart';
 import 'api_exceptions.dart';
 
 class ApiClient {
@@ -11,6 +12,7 @@ class ApiClient {
   Map<String, String> get _defaultHeaders => {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        ...ApiEndpoints.authHeaders,
       };
 
   Future<dynamic> get(String url, {Map<String, String>? headers}) async {
@@ -112,6 +114,7 @@ class ApiClient {
   }) async {
     try {
       final request = http.MultipartRequest('POST', Uri.parse(url));
+      request.headers.addAll(ApiEndpoints.authHeaders);
 
       if (fields != null) {
         request.fields.addAll(fields);

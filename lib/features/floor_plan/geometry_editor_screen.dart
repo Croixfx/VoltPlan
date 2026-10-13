@@ -69,7 +69,7 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
     if (widget.planAspectRatio != null) {
       _aspect = widget.planAspectRatio;
     } else {
-      final stream = NetworkImage(_imageUrl).resolve(const ImageConfiguration());
+      final stream = NetworkImage(_imageUrl, headers: ApiEndpoints.authHeaders).resolve(const ImageConfiguration());
       late final ImageStreamListener listener;
       listener = ImageStreamListener(
         (info, _) {
@@ -482,7 +482,7 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
                       fit: StackFit.expand,
                       children: [
                         if (widget.planAspectRatio == null)
-                          Image.network(_imageUrl, fit: BoxFit.fill)
+                          Image.network(_imageUrl, headers: ApiEndpoints.authHeaders, fit: BoxFit.fill)
                         else
                           const ColoredBox(color: Colors.white),
                         CustomPaint(
