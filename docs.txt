@@ -1,540 +1,220 @@
-Build a professional Flutter mobile application called **VoltPlan**.
-
-VoltPlan is an AI-assisted electrical planning and estimation app for building professionals.
-
-## Important scope
-
-This is a real commercial mobile application, not a toy/demo.
-
-For this first implementation, focus on **UI/UX and frontend architecture only**.
-
-Do NOT implement:
-
-* Architectural floor-plan editing
-* CAD functionality
-* Manual electrical drawing/editing
-* Real AI integration
-* Real electrical calculations
-* Backend APIs
-* Authentication backend
-* Payment systems
-
-Use realistic mock data and structure the code so these capabilities can be integrated later.
-
-## Technology
-
-* Flutter
-* Dart
-* Material 3
-* Responsive mobile-first design
-* Clean feature-based architecture
-* Reusable components
-* Proper navigation
-* Dark/light theme support if practical
-
-## Product concept
-
-The user workflow should be:
-
-Dashboard
-→ Create Project
-→ Upload Architectural Plan
-→ AI Analysis
-→ Electrical Recommendations
-→ Electrical Plan
-→ BOQ
-→ Cost Estimate
-→ Report
-
-The uploaded architectural plan is VIEW-ONLY.
-
-There is no floor-plan editing in this version.
-
-## Visual direction
-
-Create a premium engineering/technology product.
-
-Design references:
-
-* Linear
-* Figma
-* Autodesk
-* modern engineering software
-* professional fintech/SaaS interfaces
-
-The interface should communicate:
-
-Precision
-Trust
-Engineering
-Reliability
-Efficiency
-
-Avoid:
-
-* excessive gradients
-* excessive glassmorphism
-* cartoonish AI graphics
-* generic startup landing-page aesthetics
-* oversized decorative elements
-* unnecessary animations
-
-Use a clean light interface with restrained blue/indigo accents, neutral surfaces, subtle borders, and strong typography.
-
-## Main navigation
-
-Use a mobile-friendly bottom navigation:
-
-Home
-Projects
-Materials
-Profile
-
-## Screen 1 — Dashboard
-
-Create a polished dashboard containing:
-
-Header:
-"Good morning"
-User name
-Notification icon
-
-Primary action:
-"+ New Project"
-
-Statistics:
-
-* Active Projects
-* Completed Analyses
-* Estimated Projects
-
-Recent Projects list.
-
-Each project card should show:
-
-* Project name
-* Client
-* Building type
-* Last updated
-* Analysis status
-
-Example projects:
-
-"Modern Family House"
-"3 Bedroom Residence"
-"Office Renovation"
-
-## Screen 2 — Projects
-
-Show all projects.
-
-Include:
-
-* Search
-* Filter
-* Project cards
-* Floating/add project button
-
-Project card:
-Project name
-Client
-Location
-Status
-Last updated
-
-## Screen 3 — Create Project
-
-Form fields:
-
-Project Name
-Client Name
-Building Type
-Location
-Electrical Standard
-Notes
-
-Building type examples:
-
-* Residential
-* Commercial
-* Office
-* Apartment
-
-Primary button:
-
-"Create Project"
-
-## Screen 4 — Project Overview
-
-Show:
-
-Project name
-Client
-Status
-
-Progress timeline:
-
-1. Floor Plan
-2. AI Analysis
-3. Electrical Design
-4. BOQ
-5. Cost Estimate
-6. Report
-
-Display the uploaded architectural plan preview.
-
-Primary action:
-
-"Upload Floor Plan"
-
-Accepted formats:
-PDF
-PNG
-JPG
-
-## Screen 5 — Upload Floor Plan
-
-Create a polished upload interface.
-
-Show:
-"Upload Architectural Plan"
-
-Supported formats:
-PDF, PNG, JPG
-
-Maximum file size indicator.
-
-Use a large upload area with:
-
-Upload from device
-
-Also show recently uploaded files.
-
-After upload, navigate to the analysis screen.
-
-## Screen 6 — AI Analysis
-
-Create an analysis progress screen.
-
-Header:
-
-"Analyzing Floor Plan"
-
-Display the uploaded plan preview.
-
-Show processing stages:
-
-✓ Uploading floor plan
-✓ Reading architectural drawing
-● Detecting rooms
-○ Identifying electrical requirements
-○ Preparing recommendations
-
-Use a subtle professional animation.
-
-When complete, show:
-
-"Analysis Complete"
-
-Example results:
-
-8 Rooms Detected
-24 Electrical Points
-5 Recommended Circuits
-1 Distribution Board
-
-Button:
-
-"View Recommendations"
-
-## Screen 7 — Electrical Recommendations
-
-Display AI-generated recommendations grouped by room.
-
-Example:
-
-LIVING ROOM
-
-2 Ceiling Lights
-4 Double Sockets
-1 TV Point
-
-KITCHEN
-
-2 Ceiling Lights
-6 Double Sockets
-1 Cooker Point
-1 Refrigerator Point
-
-BEDROOM 1
-
-1 Ceiling Light
-3 Double Sockets
-
-Each recommendation should have:
-
-* Icon
-* Description
-* Quantity
-* Recommendation status
-
-Allow the user to tap an item to see details.
-
-Use language such as:
-
-"Recommended"
-
-"Preliminary"
-
-"Review Required"
-
-Do not claim that the AI replaces a licensed electrical engineer.
-
-## Screen 8 — Electrical Plan
-
-Display the uploaded architectural plan as a large view-only canvas.
-
-Overlay mock electrical symbols:
-
-Light
-Switch
-Socket
-Distribution Board
-Appliance Point
-
-Allow:
-
-* Zoom
-* Pan
-* Tap symbol to inspect
-
-DO NOT allow editing or dragging symbols.
-
-When a symbol is tapped, show a bottom sheet with:
-
-Component
-Room
-Quantity
-Recommended cable
-Circuit
-Protection
-
-Example:
-
-Double Socket
-
-Room:
-Living Room
-
-Cable:
-2.5 mm²
-
-Circuit:
-SOCKET-01
-
-Protection:
-20A MCB
-
-Status:
-Recommended
-
-## Screen 9 — Circuits
-
-Create a professional electrical circuit list.
-
-Example:
-
-LGT-01
-Lighting
-8 points
-1.5 mm²
-10A MCB
-
-SOCKET-01
-General sockets
-12 points
-2.5 mm²
-20A MCB
-
-KITCHEN-01
-Kitchen appliances
-4 points
-4 mm²
-25A MCB
-
-Use status indicators:
-Recommended
-Review
-Warning
-
-## Screen 10 — Materials / BOQ
-
-Create a professional BOQ screen.
-
-Categories:
-
-Cables
-Lighting
-Switches
-Sockets
-Protection
-Distribution Board
-Conduits
-Accessories
-
-Table/card information:
-
-Item
-Specification
-Quantity
-Unit
-Unit Price
-Total
-
-Example:
-
-1.5 mm² Cable
-180 m
-
-2.5 mm² Cable
-320 m
-
-LED Ceiling Light
-14 pcs
-
-Double Socket
-18 pcs
-
-20A MCB
-5 pcs
-
-Allow editing of quantities for mock UI purposes, but don't implement real calculation logic yet.
-
-## Screen 11 — Cost Estimate
-
-Create a clear cost summary.
-
-Estimated Electrical Cost:
-
-1,245,000 RWF
-
-Breakdown:
-
-Materials
-Labor
-Contingency
-
-Use a professional visual breakdown.
-
-Include:
-
-"Preliminary estimate"
-
-"Prices should be verified with suppliers."
-
-## Screen 12 — Report
-
-Show a report preview containing:
-
-Project information
-Floor plan
-Electrical recommendations
-Circuit summary
-Materials / BOQ
-Cost estimate
-
-Primary button:
-
-"Generate Report"
-
-Use a mock PDF-generation action for now.
-
-## Screen 13 — Profile / Settings
-
-Include:
-
-Profile
-Company
-Electrical Standard
-Units
-Notifications
-Theme
-Help & Support
-About VoltPlan
-
-## UX requirements
-
-The app should feel like a real professional engineering product.
-
-Use:
-
-* Bottom sheets
-* Cards
-* Tabs where appropriate
-* Floating actions
-* Clear hierarchy
-* Consistent spacing
-* Proper empty states
-* Loading states
-* Error states
-* Success states
-
-Avoid overcrowding screens.
-
-The floor plan should always remain the visual centerpiece of the analysis/design workflow.
-
-## Architecture
-
-Use a clean feature-based Flutter structure.
-
-Organize code approximately as:
-
-lib/
-app/
-core/
-features/
-auth/
-dashboard/
-projects/
-floor_plan/
-analysis/
-electrical/
-boq/
-cost_estimate/
-reports/
-settings/
-shared/
-
-Keep UI, models, services, and state management separated.
-
-Create reusable components for:
-
-* Project cards
-* Status badges
-* Primary buttons
-* Section headers
-* Metric cards
-* Bottom sheets
-* Empty states
-* Loading states
-
-## Mock data
-
-Use realistic mock data throughout the application.
-
-Do not use lorem ipsum.
-
-Use Rwandan context where appropriate:
-
-* RWF currency
-* realistic residential projects
-* realistic electrical materials
-* realistic quantities
-
-## Important
-
-Do not build a fake AI system that pretends to actually analyze an uploaded architectural drawing.
-
-For this version, simulate the analysis using mock data while keeping the code structured so a real backend/API can replace the mock service later.
-
-The final result should look like a polished commercial mobile application that is ready for the next development phase.
+VOLTPLAN - PROJECT STATUS REPORT
+================================
+Branch: remediation/phase1-geometry
+Latest commit: 5ff55ed (calibrate scale from the project overview)
+Tests: backend 65 passed / 1 skipped; Flutter 32 passed; flutter analyze clean.
+(The original build brief that used to live in this file is still in git history.)
+
+
+1. WHAT VOLTPLAN DOES
+---------------------
+VoltPlan is a Flutter app (Android, iOS, web, desktop) with a FastAPI backend.
+It takes an architectural floor plan and produces an electrical design for it:
+
+  1. Create a project (client, building type, location, standard).
+  2. Upload the plan (PDF, PNG or JPG, up to 25 MB).
+  3. Calibrate the scale: tap two points on the plan and enter the real
+     distance between them.
+  4. AI analysis: a vision model reads rooms, doors, windows and fixtures.
+  5. A canonical geometry model is built (walls, openings, obstacles,
+     coordinates in millimetres).
+  6. A rules engine (RS IEC 60364) proposes electrical points: lights,
+     switches, sockets, appliances, smoke detectors, fans, outdoor lights,
+     data and TV outlets, emergency lighting.
+  7. A circuit engine groups points into circuits, sizes cable and breakers,
+     and assigns phases L1/L2/L3.
+  8. A BOQ engine builds the bill of quantities; a cost service prices it in
+     Rwandan Francs (materials, labour, contingency).
+  9. The app shows all of it: interactive plan canvas with IEC symbols,
+     circuit schedule, BOQ, cost estimate and a report screen.
+
+Principle: the AI only observes the drawing. Every electrical decision comes
+from deterministic, traceable rules. Each point records the rule that placed
+it, the geometry it used and whether it is "proposed" or "needs confirmation".
+
+
+2. ARCHITECTURE
+---------------
+Flutter app (lib/)
+  app/            theme and routes
+  core/           API client, endpoints, shared widgets
+  features/       dashboard, projects, floor_plan (upload, scale calibration),
+                  analysis, electrical (recommendations, canvas, circuits),
+                  boq, cost_estimate, reports, settings
+  shared/         models (project, room, electrical_point, circuit, ...),
+                  AppState (single ChangeNotifier), mock_data
+  Talks to the backend at http://127.0.0.1:8000/api (api_endpoints.dart).
+
+Backend (backend/app/)
+  api/routes/     health, projects, uploads, analysis, scale, equipment
+  services/       vision_service        AI providers (gemini, openai, mock)
+                  canonical_geometry_service / coordinate_transform
+                  geometry_engine       OpenCV wall snapping, door swings
+                  electrical_engine     turns rules into traceable points
+                  circuit_engine        circuits, phases, wiring arcs
+                  boq_engine / cost_service
+                  scale_service         scale calibration maths
+                  plan_analysis_service pipeline orchestrator
+  engineering_rules/  RS IEC 60364 rules (base class allows other standards)
+  catalog/        equipment catalog (single source of truth, see section 3)
+  models, schemas, db   SQLAlchemy (SQLite by default), Pydantic
+
+Pipeline order (plan_analysis_service.py):
+  vision -> canonical geometry -> electrical points -> circuits -> BOQ -> cost
+
+
+3. WHAT WAS DONE IN THIS WORK SESSION
+-------------------------------------
+Commit 797209a - scale calibration and honest AI failures
+  - PUT/GET/DELETE /api/projects/{id}/scale. Two points (as image ratios) plus
+    the real distance in mm give mm-per-pixel, with plausibility checks.
+  - Calibration is stored on the project and reset when a new plan is uploaded.
+  - Calibrated projects build their geometry with a verified scale
+    (status "user_calibrated"); others stay "unscaled / unverified".
+  - The silent fallback to mock data is gone. A missing API key, API error or
+    unknown AI_PROVIDER now fails the analysis visibly (HTTP 502, status
+    "failed", reason in the status endpoint). Mock mode adds a "DEMO DATA"
+    warning to every result.
+  - Flutter: calibration screen between upload and AI analysis.
+
+Commit d9ac8e1 - equipment catalog
+  - backend/app/catalog/equipment.py declares each placeable type once:
+    symbol, mounting, default load, cable, protection, circuit class, cable
+    runs and BOQ lines with prices.
+  - Circuit and BOQ engines read from it (no more hardcoded type lists).
+  - New equipment with placement rules: smoke detector, emergency light
+    (non-residential corridors only), extractor fan, outdoor light, data
+    outlet, TV outlet. New circuits: CKT-SAF-01 (safety) and CKT-ELV-01
+    (extra-low-voltage cabling).
+  - GET /api/equipment and /api/equipment/{type_id}.
+  - Flutter: new point types, symbols and a "Safety & Comms" canvas layer.
+
+Commit 5ff55ed - calibration from the project overview
+  - Scale status row with Calibrate / Recalibrate button; reminder to re-run
+    analysis after recalibrating; overview now refreshes on state changes.
+
+Earlier (ee96b0e, 1981064): Phase 1 canonical geometry model, the IEC 60364
+placement engine, OpenCV wall snapping and the interactive canvas.
+
+
+4. HONEST STATE OF THE PROJECT
+------------------------------
+Works and tested:
+  - Full backend pipeline end to end, driven by the mock vision provider.
+  - Scale calibration (API and UI), equipment catalog, circuits, BOQ, cost.
+  - Flutter screens for the whole workflow.
+
+Not yet proven:
+  - Real-world accuracy. The mock provider returns the same six rooms for any
+    upload. The Gemini and OpenAI providers exist but have not been validated
+    against real plans, so output quality on actual drawings is unknown.
+  - The app has not been run end to end against the live backend in this
+    session (only unit, widget and API tests).
+
+Known weaknesses:
+  1. Geometry is inferred from AI bounding boxes, so rooms are rectangles.
+     L-shaped rooms, thick or curved walls and multi-storey plans are not
+     handled. Wall detection by OpenCV is used for snapping, not as the
+     source of room shapes.
+  2. Scale needs a known dimension on the drawing. Nothing reads dimensions or
+     scale bars automatically.
+  3. There is no manual editing. Users cannot add, move or delete equipment,
+     or fix room boundaries and door positions, before generating circuits.
+  4. Safety-relevant placement (wet zones, door-swing clearance) depends on
+     what the AI detected. A missed shower or door is not caught.
+  5. New-equipment prices and placement quantities (e.g. 2 data outlets per
+     office) are reasonable defaults, not verified against suppliers or the
+     standard text. Review them with a qualified engineer.
+  6. Only RS IEC 60364 rules exist. BS 7671 and NEC appear in the settings
+     screen but have no rule implementation.
+  7. Sample drawings and offline projects still use local mock data in the
+     Flutter app (mock_data.dart), and they skip calibration.
+  8. Repository hygiene: AI_PROVIDER defaults to "mock"; no CI; no
+     .gitattributes (LF/CRLF warnings on every commit); app-icon PNG changes
+     are still uncommitted; build/, uploads and the zip in the repo root
+     should not live there.
+  9. No authentication or multi-user support; the output is advisory and must
+     be reviewed and signed off by a licensed engineer.
+
+
+5. HOW TO RUN IT
+----------------
+Backend:
+  cd backend
+  python -m venv venv ; .\venv\Scripts\activate   (Windows)
+  pip install -r requirements.txt
+  copy .env.example .env      (set AI_PROVIDER and the matching API key)
+  python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+  API docs: http://localhost:8000/docs
+  Tests: python -m pytest -q
+
+AI provider settings (backend/.env):
+  AI_PROVIDER=mock | gemini | openai
+  GEMINI_API_KEY / OPENAI_API_KEY as needed. With a real provider and no key,
+  analysis now fails with a clear message instead of using mock data.
+
+Flutter:
+  flutter pub get
+  flutter run -d chrome        (or -d windows, or a connected device)
+  flutter analyze ; flutter test
+  On a phone/emulator, change ApiEndpoints.baseUrl from 127.0.0.1 to the
+  machine's address.
+
+
+6. HOW TO PROCEED (RECOMMENDED ORDER)
+-------------------------------------
+Step 1 - Prove it on real plans (highest priority)
+  - Set AI_PROVIDER=gemini or openai with a real key and run 10-20 genuine
+    floor plans of varying quality through the app.
+  - Record what the AI gets wrong (room boundaries, doors, wet fixtures) and
+    keep these plans as regression fixtures in backend/tests.
+  - Until this is done, treat all output as a prototype.
+
+Step 2 - Manual review and editing (biggest usability gain)
+  - Let users correct room polygons, door positions and fixtures BEFORE
+    electrical generation runs.
+  - Then let users add, move and delete equipment on the canvas; the backend
+    re-validates the change and regenerates circuits and BOQ.
+  - Backend: PATCH endpoints for rooms/openings/points plus a "regenerate"
+    call. Flutter: edit mode on ElectricalPlanCanvasScreen.
+
+Step 3 - Make geometry trustworthy
+  - Detect walls and room polygons with OpenCV first and let the AI only
+    label them. Support non-rectangular rooms.
+  - Validate the geometry (closed polygons, no overlaps, doors on walls,
+    areas consistent with the scale) and refuse to generate when it fails.
+  - Optionally read dimension text or scale bars to suggest a calibration.
+
+Step 4 - Engineering depth
+  - Voltage drop and cable-length checks per circuit; diversity and
+    maximum-demand calculation for the main incomer.
+  - Review the new equipment rules and prices with a licensed engineer and
+    local suppliers (RWF pricing in the catalog is placeholder data).
+  - Add BS 7671 and other standards through the existing base class, or hide
+    them in settings until implemented.
+
+Step 5 - Productise
+  - Authentication and per-user projects; PostgreSQL via docker-compose.
+  - PDF report export (currently an animated mock).
+  - CI running pytest and flutter test; add .gitattributes; remove build
+    artefacts, uploads and the zip from the repo; commit or discard the icon
+    changes; merge the branch to main.
+  - Remove mock_data usage from the Flutter app once the backend is the only
+    data source.
+
+Adding equipment (already easy):
+  1. register_equipment(EquipmentSpec(...)) in backend/app/catalog/equipment.py
+  2. To auto-propose it, add a rule in get_additional_equipment of
+     engineering_rules/rs_iec_60364.py using catalog_point(...)
+  3. Add the type to ElectricalPointType (lib/shared/models/electrical_point.dart)
+     and a symbol in floor_plan_painter.dart.
+
+
+7. RISKS TO KEEP IN MIND
+------------------------
+  - An electrical design is a safety document. The app proposes; a licensed
+    engineer must review and approve. Keep the "needs confirmation" flags and
+    the unverified-scale warnings visible to users.
+  - Never reintroduce silent fallbacks: output that looks real but is not
+    destroys trust faster than an explicit error.
+  - Prices and quantities are estimates until validated locally.
