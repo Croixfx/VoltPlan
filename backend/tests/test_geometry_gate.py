@@ -71,7 +71,29 @@ def test_reanalysis_is_refused_when_rooms_were_corrected_by_a_user(client, db_se
     db_session.commit()
 
     res = client.post(f"/api/projects/{pid}/analyze")
-    assert res.status_code == 409 and "corrected" in res.json()["detail"]
+    assert res.status_code == 409
+    detail = res.json()["detail"]
+    assert detail["code"] == "geometry_corrected"
+    # the text is for people: no API parameter names, no paths, and it names both ways forward
+    assert "reset_geometry" not in detail["message"] and "/api" not in detail["message"] and "=" not in detail["message"]
+    assert "Rebuild the design from your corrections" in detail["message"] and "read the plan again with AI" in detail["message"]
     assert client.post(f"/api/projects/{pid}/analyze?reset_geometry=true").status_code == 200
     db_session.refresh(analysis)
     assert analysis.geometry_reviewed is False
+
+
+def test_uploading_a_new_plan_clears_the_corrections_so_the_project_is_not_blocked_forever(client, db_session):
+    pid = _project(client)
+    assert client.post(f"/api/projects/{pid}/analyze").status_code == 200
+    assert client.patch(f"/api/projects/{pid}/rooms/room_bed1", json={"name": "Guest Bedroom"}).status_code == 200
+    assert client.post(f"/api/projects/{pid}/analyze").status_code == 409          # corrections protect the old drawing
+
+    buf = io.BytesIO()
+    Image.new("RGB", (640, 480), (255, 255, 255)).save(buf, format="PNG")
+    buf.seek(0)
+    assert client.post(f"/api/projects/{pid}/plan", files={"file": ("new.png", buf, "image/png")}).status_code == 200
+
+    analysis = db_session.query(Analysis).filter(Analysis.project_id == pid).first()
+    db_session.refresh(analysis)
+    assert analysis.geometry_reviewed is False and analysis.geometry_dirty is False
+    assert client.post(f"/api/projects/{pid}/analyze").status_code == 200          # the new drawing can be analysed

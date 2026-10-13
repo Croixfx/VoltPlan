@@ -405,7 +405,7 @@ Do NOT invent unreadable dimensions; return null for area_m2 if dimensions are n
             if response.status_code >= 400:
                 raise VisionProviderError(
                     f"Gemini rejected the request ({describe_http_error(response, settings.GEMINI_API_KEY)}). "
-                    f"Model: {settings.GEMINI_MODEL}. Check /api/ai/check."
+                    f"Model: {settings.GEMINI_MODEL}. Ask the administrator to check the AI settings."
                 )
             data = response.json()
             candidates = data.get("candidates") or []
@@ -507,7 +507,7 @@ Output JSON only matching the schema with rooms, architectural_features, observa
             if response.status_code >= 400:
                 raise VisionProviderError(
                     f"OpenAI rejected the request ({describe_http_error(response, settings.OPENAI_API_KEY)}). "
-                    f"Model: {settings.OPENAI_MODEL}. Check /api/ai/check."
+                    f"Model: {settings.OPENAI_MODEL}. Ask the administrator to check the AI settings."
                 )
             data = response.json()
             content = data["choices"][0]["message"]["content"]

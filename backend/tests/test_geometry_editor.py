@@ -230,7 +230,8 @@ def test_reanalysis_will_not_silently_discard_corrections(client):
     client.patch(f"/api/projects/{pid}/rooms/room_bed1", json={"name": "Guest Bedroom"})
 
     res = client.post(f"/api/projects/{pid}/analyze")
-    assert res.status_code == 409 and "regenerate" in res.json()["detail"].lower()
+    assert res.status_code == 409 and res.json()["detail"]["code"] == "geometry_corrected"
+    assert "reset_geometry" not in res.json()["detail"]["message"]
     assert _room(_geo(client, pid), "room_bed1")["name"] == "Guest Bedroom"
 
     res = client.post(f"/api/projects/{pid}/analyze?reset_geometry=true")

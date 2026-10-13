@@ -19,6 +19,9 @@ from app.services.geometry_validator import GeometryIssue, GeometryValidator, ha
 from app.services.point_edit_service import PointEditService
 
 
+GEOMETRY_CORRECTED_CODE = "geometry_corrected"
+
+
 def analysis_image_path_for(project: Project) -> str:
     """The image the pipeline works on (display PNG when available)."""
     project_dir = os.path.dirname(project.floor_plan_path)
@@ -118,11 +121,14 @@ class PlanAnalysisService:
         if analysis and analysis.geometry_reviewed and not reset_geometry:
             raise HTTPException(
                 status_code=409,
-                detail=(
-                    "This project has manually corrected rooms / doors. Re-reading the plan with AI would discard "
-                    "them. Use 'Regenerate' to rebuild the equipment from your corrections, or pass "
-                    "reset_geometry=true to discard the corrections and re-read the plan."
-                ),
+                detail={
+                    # `code` lets the app offer the right buttons; `message` is for people and uses no API terms.
+                    "code": GEOMETRY_CORRECTED_CODE,
+                    "message": (
+                        "You have corrected rooms or doors in this project. Rebuild the design from your "
+                        "corrections, or read the plan again with AI (this discards your corrections)."
+                    ),
+                },
             )
         if not analysis:
             analysis = Analysis(project_id=project_id)

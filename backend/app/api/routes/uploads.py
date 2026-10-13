@@ -4,6 +4,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+from app.models.analysis import Analysis
 from app.models.project import Project
 from app.schemas.project import ProjectResponse
 from app.services.document_service import DocumentService
@@ -30,9 +31,14 @@ async def upload_floor_plan(
     project.floor_plan_content_type = save_result["content_type"]
     project.floor_plan_size = save_result["size"]
     project.status = "uploaded"
-    # A new drawing invalidates any previous scale calibration
+    # A new drawing invalidates any previous scale calibration ...
     project.scale_mm_per_pixel = None
     project.scale_calibration = None
+    # ... and the room / door corrections made on the old drawing, which would otherwise block re-analysis forever
+    analysis = db.query(Analysis).filter(Analysis.project_id == project_id).first()
+    if analysis:
+        analysis.geometry_reviewed = False
+        analysis.geometry_dirty = False
 
     db.commit()
     db.refresh(project)

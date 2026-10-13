@@ -100,7 +100,7 @@ def test_gemini_http_errors_say_what_google_said_and_never_leak_the_key(gemini, 
     with pytest.raises(VisionProviderError) as exc:
         analyze(GeminiVisionProvider(), plan_png)
     msg = str(exc.value)
-    assert "HTTP 404" in msg and "is not found" in msg and "/api/ai/check" in msg
+    assert "HTTP 404" in msg and "is not found" in msg and "/api/" not in msg      # no API paths for users
     assert KEY not in msg and "key=" not in msg
 
 
