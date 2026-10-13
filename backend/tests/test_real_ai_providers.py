@@ -7,6 +7,7 @@ import pytest
 from PIL import Image
 
 from app.core.config import settings
+from app.services import vision_service
 from app.services.vision_service import (
     GeminiVisionProvider,
     MockVisionProvider,
@@ -125,6 +126,50 @@ def test_unusable_answers_get_clear_messages(gemini, network, plan_png):
             analyze(GeminiVisionProvider(), plan_png)
         assert fragment in str(exc.value), fragment
         assert KEY not in str(exc.value)
+
+
+@pytest.fixture
+def no_sleep(monkeypatch):
+    slept = []
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr(vision_service.asyncio, "sleep", fake_sleep)
+    return slept
+
+
+def test_temporary_provider_errors_are_retried(gemini, network, no_sleep, plan_png):
+    answers = iter([
+        httpx.Response(503, json={"error": {"message": "This model is currently experiencing high demand."}}),
+        httpx.Response(429, json={"error": {"message": "Resource exhausted"}}),
+        gemini_ok(plan_answer()),
+    ])
+    seen = network(lambda req: next(answers))
+    assert len(analyze(GeminiVisionProvider(), plan_png).rooms) == 6
+    assert len(seen) == 3 and no_sleep == [2.0, 5.0]
+
+
+def test_retries_give_up_and_report_the_last_error(gemini, network, no_sleep, plan_png):
+    seen = network(lambda req: httpx.Response(503, json={"error": {"message": "high demand"}}))
+    with pytest.raises(VisionProviderError) as exc:
+        analyze(GeminiVisionProvider(), plan_png)
+    assert len(seen) == 3 and "HTTP 503: high demand" in str(exc.value) and KEY not in str(exc.value)
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 404])
+def test_mistakes_in_the_request_are_not_retried(gemini, network, no_sleep, plan_png, status):
+    seen = network(lambda req: httpx.Response(status, json={"error": {"message": "nope"}}))
+    with pytest.raises(VisionProviderError):
+        analyze(GeminiVisionProvider(), plan_png)
+    assert len(seen) == 1 and no_sleep == []
+
+
+def test_openai_temporary_errors_are_retried_too(monkeypatch, network, no_sleep, plan_png):
+    monkeypatch.setattr(settings, "OPENAI_API_KEY", "sk-secret-abcdef123456")
+    answers = iter([httpx.Response(500), httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(plan_answer())}}]})])
+    seen = network(lambda req: next(answers))
+    assert len(analyze(OpenAIVisionProvider(), plan_png).rooms) == 6 and len(seen) == 2
 
 
 def test_a_missing_key_is_reported_not_replaced_by_mock_data(monkeypatch, plan_png):

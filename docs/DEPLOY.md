@@ -71,7 +71,7 @@ The backend starts with `AI_PROVIDER=mock`. To read real plans:
 2. In Render: service **voltplan-api → Environment**:
    * set `AI_PROVIDER` to `gemini`
    * paste the key into `GEMINI_API_KEY`
-   * leave `GEMINI_MODEL` unset (default `gemini-flash-latest`) unless the check below says otherwise
+   * leave `GEMINI_MODEL` unset (default `gemini-3.5-flash-lite`, tested on a drawn plan) unless the check below says otherwise
    * **Save, rebuild, and deploy**.
 3. Check it, **without analysing a plan**:
 
@@ -92,6 +92,7 @@ Things to know:
 * Every analysis is one paid API call (free tiers have rate limits). The shared `API_KEY` is what keeps strangers from
   triggering them.
 * Errors never contain your Gemini key; failures show Google's own message, e.g. `HTTP 429: Quota exceeded`.
+* Temporary provider errors (429, 500, 502, 503, 504, e.g. Gemini's "high demand") are retried twice, after 2 s and 5 s.
 * OpenAI works the same way: `AI_PROVIDER=openai`, `OPENAI_API_KEY`, optional `OPENAI_MODEL`.
 
 ## 3. Build the APK

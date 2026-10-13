@@ -1,6 +1,7 @@
 import os
 import json
 import base64
+import asyncio
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List
 import httpx
@@ -39,6 +40,24 @@ def describe_http_error(response: httpx.Response, *secrets: str) -> str:
     if not detail:
         detail = (response.text or "").strip()[:200]
     return redact(f"HTTP {response.status_code}" + (f": {detail[:300]}" if detail else ""), *secrets)
+
+
+# Temporary provider-side failures worth another attempt (rate limit / overload / gateway errors). Client errors
+# such as 400, 401, 403 or 404 mean the request itself is wrong and are never retried.
+RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+RETRY_DELAYS_S = (2.0, 5.0)
+
+
+async def post_with_retry(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Response:
+    """POST, retrying a few times on temporary provider errors (e.g. Gemini 503 "high demand")."""
+    response = await client.post(url, **kwargs)
+    for delay in RETRY_DELAYS_S:
+        if response.status_code not in RETRY_STATUSES:
+            break
+        logger.warning(f"AI provider answered HTTP {response.status_code}; retrying in {delay:.0f} s")
+        await asyncio.sleep(delay)
+        response = await client.post(url, **kwargs)
+    return response
 
 
 def gemini_model_path(model: str) -> str:
@@ -382,7 +401,7 @@ Do NOT invent unreadable dimensions; return null for area_m2 if dimensions are n
 
         try:
             async with httpx.AsyncClient(timeout=90.0) as client:
-                response = await client.post(url, headers=headers, json=payload)
+                response = await post_with_retry(client, url, headers=headers, json=payload)
             if response.status_code >= 400:
                 raise VisionProviderError(
                     f"Gemini rejected the request ({describe_http_error(response, settings.GEMINI_API_KEY)}). "
@@ -484,7 +503,7 @@ Output JSON only matching the schema with rooms, architectural_features, observa
 
         try:
             async with httpx.AsyncClient(timeout=90.0) as client:
-                response = await client.post(url, headers=headers, json=payload)
+                response = await post_with_retry(client, url, headers=headers, json=payload)
             if response.status_code >= 400:
                 raise VisionProviderError(
                     f"OpenAI rejected the request ({describe_http_error(response, settings.OPENAI_API_KEY)}). "
