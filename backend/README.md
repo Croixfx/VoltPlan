@@ -126,3 +126,18 @@ are returned to the user; warnings are shown but do not block. Nothing is repair
 
 To measure how well VoltPlan reads real plans against an electrician's design, see `eval_plans/README.md`
 (`python -m tools.evaluate_plans`).
+
+---
+
+## Deployment
+
+The container image (`Dockerfile`) needs PostgreSQL (`DATABASE_URL`), a volume at `/app/uploads` and these variables:
+
+| Variable | Purpose |
+|---|---|
+| `API_KEY` | Shared key; when set every route except `/api/health` requires the header `X-API-Key`. **Set it on any internet-facing instance.** With `APP_ENV=production` and a real AI provider the server refuses to start without it. |
+| `APP_ENV` / `DEBUG` | `production` / `False` for a deployment |
+| `AI_PROVIDER` | `mock` (demo data), `gemini` or `openai` (+ `GEMINI_API_KEY` / `OPENAI_API_KEY`) |
+| `DATABASE_URL` | `postgres://` and `postgresql://` URLs from hosting platforms are accepted |
+
+Step-by-step (Render blueprint in `render.yaml`, building the APK): see `../docs/DEPLOY.md`.

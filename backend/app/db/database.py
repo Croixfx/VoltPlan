@@ -2,12 +2,23 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.core.config import settings
 
+def normalize_database_url(url: str) -> str:
+    """Hosting platforms hand out `postgres://...` or `postgresql://...`. SQLAlchemy rejects the first and (since 2.1)
+    picks a different default driver for the second, so name the driver we install (psycopg2) explicitly."""
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg2://" + url[len(prefix):]
+    return url
+
+
+DATABASE_URL = normalize_database_url(settings.DATABASE_URL)
+
 connect_args = {}
-if settings.DATABASE_URL.startswith("sqlite"):
+if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
 engine = create_engine(
-    settings.DATABASE_URL,
+    DATABASE_URL,
     connect_args=connect_args,
     pool_pre_ping=True,
 )
@@ -43,6 +54,8 @@ def init_db():
         },
         "projects": {"scale_mm_per_pixel": "FLOAT", "scale_calibration": "JSON"},
     }
+    if engine.dialect.name != "sqlite":
+        return   # fresh PostgreSQL schemas are created complete by create_all; schema changes need Alembic
     try:
         with engine.connect() as conn:
             for table, columns in additions.items():

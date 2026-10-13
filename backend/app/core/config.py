@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
 
+    # Access control for a deployed instance. Empty = no protection (local development).
+    # When set, all routes except /api/health require the header X-API-Key.
+    API_KEY: str = ""
+
     # Engineering Standard
     DEFAULT_STANDARD: str = "RS IEC 60364"
 

@@ -1,14 +1,19 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from app.core.security import require_api_key
 from app.api.routes import health, projects, uploads, analysis, scale, equipment, points, geometry, calculations
 
 api_router = APIRouter(prefix="/api")
 
+# Health stays public so hosting platforms can probe it; everything else needs the API key (when one is configured).
 api_router.include_router(health.router)
-api_router.include_router(projects.router)
-api_router.include_router(uploads.router)
-api_router.include_router(analysis.router)
-api_router.include_router(scale.router)
-api_router.include_router(equipment.router)
-api_router.include_router(points.router)
-api_router.include_router(geometry.router)
-api_router.include_router(calculations.router)
+
+protected = APIRouter(dependencies=[Depends(require_api_key)])
+protected.include_router(projects.router)
+protected.include_router(uploads.router)
+protected.include_router(analysis.router)
+protected.include_router(scale.router)
+protected.include_router(equipment.router)
+protected.include_router(points.router)
+protected.include_router(geometry.router)
+protected.include_router(calculations.router)
+api_router.include_router(protected)
