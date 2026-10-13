@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from app.core.security import require_api_key
-from app.api.routes import health, projects, uploads, analysis, scale, equipment, points, geometry, calculations
+from app.api.routes import health, projects, uploads, analysis, scale, equipment, points, geometry, calculations, ai
 
 api_router = APIRouter(prefix="/api")
 
@@ -16,4 +16,5 @@ protected.include_router(equipment.router)
 protected.include_router(points.router)
 protected.include_router(geometry.router)
 protected.include_router(calculations.router)
+protected.include_router(ai.router)
 api_router.include_router(protected)

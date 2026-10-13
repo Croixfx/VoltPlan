@@ -63,6 +63,37 @@ curl https://<host>/api/projects                                  # -> 401 Inval
 curl -H "X-API-Key: <key>" https://<host>/api/projects            # -> []
 ```
 
+## 2b. Turn on the real AI (Gemini)
+
+The backend starts with `AI_PROVIDER=mock`. To read real plans:
+
+1. Create an API key in Google AI Studio (https://aistudio.google.com/apikey). Keep it secret.
+2. In Render: service **voltplan-api → Environment**:
+   * set `AI_PROVIDER` to `gemini`
+   * paste the key into `GEMINI_API_KEY`
+   * leave `GEMINI_MODEL` unset (default `gemini-flash-latest`) unless the check below says otherwise
+   * **Save, rebuild, and deploy**.
+3. Check it, **without analysing a plan**:
+
+   ```powershell
+   curl -H "X-API-Key: <your API_KEY>" https://<host>/api/ai/check
+   ```
+
+   You want `"ok": true` and `"model_available": true`. If the model is not available the answer lists the models
+   your key can use: set `GEMINI_MODEL` to one of them (a recent *flash* model is a good start; a *pro* model reads
+   drawings better but is slower and costs more) and redeploy.
+4. Upload a plan in the app and analyse it. Expect corrections: real readings often fail the geometry checks at first;
+   fix the rooms and doors in the Rooms & Doors editor and regenerate.
+
+Things to know:
+
+* Every analysis sends the plan image to Google. Check Google's terms for how your plan data is handled, especially on
+  free tiers, before uploading client drawings.
+* Every analysis is one paid API call (free tiers have rate limits). The shared `API_KEY` is what keeps strangers from
+  triggering them.
+* Errors never contain your Gemini key; failures show Google's own message, e.g. `HTTP 429: Quota exceeded`.
+* OpenAI works the same way: `AI_PROVIDER=openai`, `OPENAI_API_KEY`, optional `OPENAI_MODEL`.
+
 ## 3. Build the APK
 
 ```powershell

@@ -32,7 +32,8 @@ class Settings(BaseSettings):
     # Supported: "mock", "gemini", "openai"
     AI_PROVIDER: str = "mock"
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-3.5-flash-lite"
+    # An alias Google keeps pointing at its current Flash model. Verify what your key can use: GET /api/ai/check
+    GEMINI_MODEL: str = "gemini-flash-latest"
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
 
