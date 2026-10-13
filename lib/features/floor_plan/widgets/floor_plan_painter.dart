@@ -201,13 +201,22 @@ class FloorPlanPainter extends CustomPainter {
     if (activeLayer == 'lighting') {
       return pt.type == ElectricalPointType.light ||
           pt.type == ElectricalPointType.downlight ||
-          pt.type == ElectricalPointType.switchPoint;
+          pt.type == ElectricalPointType.switchPoint ||
+          pt.type == ElectricalPointType.outdoorLight ||
+          pt.type == ElectricalPointType.extractorFan;
     }
     if (activeLayer == 'power') {
       return pt.type == ElectricalPointType.socketDouble ||
           pt.type == ElectricalPointType.socketSingle ||
           pt.type == ElectricalPointType.cookerPoint ||
-          pt.type == ElectricalPointType.waterHeater;
+          pt.type == ElectricalPointType.waterHeater ||
+          pt.type == ElectricalPointType.acPoint;
+    }
+    if (activeLayer == 'safety') {
+      return pt.type == ElectricalPointType.smokeDetector ||
+          pt.type == ElectricalPointType.emergencyLight ||
+          pt.type == ElectricalPointType.dataPoint ||
+          pt.type == ElectricalPointType.tvPoint;
     }
     if (activeLayer == 'distribution') {
       return pt.type == ElectricalPointType.distributionBoard;
@@ -611,6 +620,30 @@ class FloorPlanPainter extends CustomPainter {
 
       case ElectricalPointType.tvPoint:
         _drawDedicatedPoint(canvas, pos, 'TV', symbolColor, bgPaint, strokePaint, isDark);
+        break;
+
+      case ElectricalPointType.acPoint:
+        _drawDedicatedPoint(canvas, pos, 'AC', symbolColor, bgPaint, strokePaint, isDark);
+        break;
+
+      case ElectricalPointType.extractorFan:
+        _drawDedicatedPoint(canvas, pos, 'EF', symbolColor, bgPaint, strokePaint, isDark);
+        break;
+
+      case ElectricalPointType.smokeDetector:
+        _drawDedicatedPoint(canvas, pos, 'SD', symbolColor, bgPaint, strokePaint, isDark);
+        break;
+
+      case ElectricalPointType.emergencyLight:
+        _drawDedicatedPoint(canvas, pos, 'EM', symbolColor, bgPaint, strokePaint, isDark);
+        break;
+
+      case ElectricalPointType.dataPoint:
+        _drawDedicatedPoint(canvas, pos, 'D', symbolColor, bgPaint, strokePaint, isDark);
+        break;
+
+      case ElectricalPointType.outdoorLight:
+        _drawDedicatedPoint(canvas, pos, 'OL', symbolColor, bgPaint, strokePaint, isDark);
         break;
     }
   }

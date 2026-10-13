@@ -9,7 +9,13 @@ enum ElectricalPointType {
   distributionBoard('Distribution Board', Icons.electrical_services),
   cookerPoint('Cooker Point', Icons.soup_kitchen_outlined),
   waterHeater('Water Heater Point', Icons.water_damage_outlined),
-  tvPoint('TV Outlet', Icons.tv);
+  tvPoint('TV Outlet', Icons.tv),
+  acPoint('AC Isolator', Icons.ac_unit),
+  extractorFan('Extractor Fan', Icons.air),
+  smokeDetector('Smoke Detector', Icons.sensors),
+  emergencyLight('Emergency Light', Icons.emergency_outlined),
+  dataPoint('Data Outlet', Icons.settings_ethernet),
+  outdoorLight('Outdoor Light', Icons.wb_twilight);
 
   final String label;
   final IconData icon;
@@ -41,6 +47,18 @@ enum ElectricalPointType {
         return ElectricalPointType.waterHeater;
       case 'tv_point':
         return ElectricalPointType.tvPoint;
+      case 'ac_point':
+        return ElectricalPointType.acPoint;
+      case 'extractor_fan':
+        return ElectricalPointType.extractorFan;
+      case 'smoke_detector':
+        return ElectricalPointType.smokeDetector;
+      case 'emergency_light':
+        return ElectricalPointType.emergencyLight;
+      case 'data_point':
+        return ElectricalPointType.dataPoint;
+      case 'outdoor_light':
+        return ElectricalPointType.outdoorLight;
       default:
         return ElectricalPointType.socketSingle;
     }
@@ -134,6 +152,10 @@ class ElectricalPoint {
       label = '20A Water Heater Isolator';
     } else if (typeStr == 'ac_point') {
       label = 'AC Isolator';
+    } else if (typeStr == 'smoke_detector') {
+      label = 'Interlinked Smoke Alarm';
+    } else if (typeStr == 'data_point') {
+      label = 'Cat6 Data Outlet';
     }
 
     return ElectricalPoint(

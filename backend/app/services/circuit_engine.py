@@ -1,6 +1,7 @@
 import math
-from typing import List, Tuple, Dict
+from typing import List, Optional, Tuple, Dict
 from shapely.geometry import Point
+from app.catalog import CircuitClass, circuit_class_of, get_equipment
 from app.engineering_rules.registry import get_engineering_standard
 from app.schemas.electrical import ElectricalPoint, Circuit, WiringArc
 from app.services.geometry_engine import GeometryEngine
@@ -27,13 +28,11 @@ class CircuitEngine:
         phases = ["L1", "L2", "L3"]
         phase_idx = 0
 
-        # Separate points by functional class
-        lighting_pts = [p for p in updated_points if p.type == "lighting"]
-        kitchen_pwr_pts = [p for p in updated_points if p.type == "twin_socket" and "kitchen" in p.room_name.lower()]
-        general_pwr_pts = [p for p in updated_points if p.type == "twin_socket" and "kitchen" not in p.room_name.lower()]
-        appliance_pts = [p for p in updated_points if p.type in ["cooker_point", "water_heater", "ac_point", "single_socket"]]
+        def klass(p: ElectricalPoint) -> Optional[CircuitClass]:
+            return circuit_class_of(p.type)
 
-        # 1. Lighting Circuits
+        # 1. Lighting Circuits (luminaires, extractor fans, outdoor lights, ...)
+        lighting_pts = [p for p in updated_points if klass(p) == CircuitClass.LIGHTING]
         max_lgt_pts = rules.get("max_lighting_points_per_circuit", 10)
         lgt_circuit_idx = 1
         room_to_lgt_circuit = {}
@@ -53,7 +52,7 @@ class CircuitEngine:
                 Circuit(
                     id=ckt_id,
                     name=f"Lighting Circuit {lgt_circuit_idx}",
-                    description=f"Lighting for {', '.join(set(p.room_name for p in chunk))}",
+                    description=f"Lighting for {', '.join(sorted(set(p.room_name for p in chunk)))}",
                     circuit_type="lighting",
                     points_count=len(chunk),
                     connected_load_w=tot_w,
@@ -70,14 +69,12 @@ class CircuitEngine:
         # Assign switches to lighting circuits
         default_lgt_circuit = circuits[0].id if circuits else "CKT-LGT-01"
         for p in updated_points:
-            if "switch" in p.type:
+            if klass(p) == CircuitClass.SWITCH:
                 p.circuit_id = room_to_lgt_circuit.get(p.room_id, default_lgt_circuit)
 
         # 2. Kitchen Power Circuits (Dedicated radial)
-        kitchen_pwr_pts = [
-            p for p in updated_points
-            if (p.type in ["twin_socket", "single_socket"]) and ("kitchen" in p.room_name.lower())
-        ]
+        socket_pts = [p for p in updated_points if klass(p) == CircuitClass.SOCKET]
+        kitchen_pwr_pts = [p for p in socket_pts if "kitchen" in p.room_name.lower()]
         if kitchen_pwr_pts:
             ckt_id = "CKT-PWR-KIT"
             tot_w = sum(p.power_rating_w * p.quantity for p in kitchen_pwr_pts)
@@ -105,12 +102,7 @@ class CircuitEngine:
             )
 
         # 3. General Socket Circuits
-        general_pwr_pts = [
-            p for p in updated_points
-            if (p.type in ["twin_socket", "single_socket"])
-            and ("kitchen" not in p.room_name.lower())
-            and p.circuit_id is None
-        ]
+        general_pwr_pts = [p for p in socket_pts if "kitchen" not in p.room_name.lower()]
         max_pwr_pts = rules.get("max_sockets_per_radial_circuit", 6)
         pwr_circuit_idx = 1
         for i in range(0, len(general_pwr_pts), max_pwr_pts):
@@ -127,7 +119,7 @@ class CircuitEngine:
                 Circuit(
                     id=ckt_id,
                     name=f"Power Sockets Circuit {pwr_circuit_idx}",
-                    description=f"Sockets for {', '.join(set(p.room_name for p in chunk))}",
+                    description=f"Sockets for {', '.join(sorted(set(p.room_name for p in chunk)))}",
                     circuit_type="power",
                     points_count=len(chunk),
                     connected_load_w=tot_w,
@@ -141,80 +133,89 @@ class CircuitEngine:
             )
             pwr_circuit_idx += 1
 
-        # 4. Dedicated Appliance Circuits
-        dedicated_pts = [
-            p for p in updated_points
-            if p.type in ["cooker_point", "water_heater", "ac_point"]
-        ]
-        for app_pt in dedicated_pts:
-            if app_pt.type == "cooker_point":
-                ckt_id = "CKT-APP-CKR"
-                app_pt.circuit_id = ckt_id
-                assigned_phase = phases[phase_idx % len(phases)]
-                phase_idx += 1
-                circuits.append(
-                    Circuit(
-                        id=ckt_id,
-                        name="Electric Cooker Circuit",
-                        description=f"Dedicated 32A cooker supply ({app_pt.room_name})",
-                        circuit_type="appliance",
-                        points_count=1,
-                        connected_load_w=app_pt.power_rating_w,
-                        phase=assigned_phase,
-                        cable=rules.get("cooker_cable", "3 x 6.0 mm² Cu/PVC"),
-                        protection=rules.get("cooker_mcb", "32A Type B"),
-                        rcd="30mA Type A RCD",
-                        status="CALCULATED",
-                        review_notes="Direct feed from consumer unit to 45A cooker control unit.",
-                    )
+        # 4. Dedicated Appliance Circuits (one per point, defined by the catalog)
+        for app_pt in [p for p in updated_points if klass(p) == CircuitClass.DEDICATED]:
+            spec = get_equipment(app_pt.type)
+            ded = spec.dedicated
+            ckt_id = ded.id_template.format(n=phase_idx)
+            app_pt.circuit_id = ckt_id
+            assigned_phase = phases[phase_idx % len(phases)]
+            phase_idx += 1
+            circuits.append(
+                Circuit(
+                    id=ckt_id,
+                    name=ded.name_template.format(room=app_pt.room_name),
+                    description=ded.description_template.format(room=app_pt.room_name),
+                    circuit_type=ded.circuit_type,
+                    points_count=1,
+                    connected_load_w=app_pt.power_rating_w,
+                    phase=assigned_phase,
+                    cable=rules.get(ded.cable_rule_key, spec.cable) if ded.cable_rule_key else spec.cable,
+                    protection=(
+                        rules.get(ded.protection_rule_key, spec.protection)
+                        if ded.protection_rule_key
+                        else spec.protection
+                    ),
+                    rcd="30mA Type A RCD",
+                    status="CALCULATED",
+                    review_notes=ded.review_notes,
                 )
-            elif app_pt.type == "water_heater":
-                ckt_id = f"CKT-APP-WTR-{phase_idx:02d}"
-                app_pt.circuit_id = ckt_id
-                assigned_phase = phases[phase_idx % len(phases)]
-                phase_idx += 1
-                circuits.append(
-                    Circuit(
-                        id=ckt_id,
-                        name=f"Water Heater ({app_pt.room_name})",
-                        description="Dedicated fixed water heater supply",
-                        circuit_type="appliance",
-                        points_count=1,
-                        connected_load_w=app_pt.power_rating_w,
-                        phase=assigned_phase,
-                        cable=rules.get("water_heater_cable", "3 x 2.5 mm² Cu/PVC"),
-                        protection=rules.get("water_heater_mcb", "20A Type B"),
-                        rcd="30mA Type A RCD",
-                        status="CALCULATED",
-                        review_notes="Dedicated circuit for water heating equipment with 30mA RCD.",
-                    )
-                )
-            elif app_pt.type == "ac_point":
-                ckt_id = f"CKT-APP-AC-{phase_idx:02d}"
-                app_pt.circuit_id = ckt_id
-                assigned_phase = phases[phase_idx % len(phases)]
-                phase_idx += 1
-                circuits.append(
-                    Circuit(
-                        id=ckt_id,
-                        name=f"Air Conditioner ({app_pt.room_name})",
-                        description="Air conditioner compressor unit",
-                        circuit_type="appliance",
-                        points_count=1,
-                        connected_load_w=app_pt.power_rating_w,
-                        phase=assigned_phase,
-                        cable="3 x 2.5 mm² Cu/PVC",
-                        protection="16A Type C MCB",
-                        rcd="30mA Type A RCD",
-                        status="CALCULATED",
-                        review_notes="Type C curve MCB specified for motor starting inrush current.",
-                    )
-                )
+            )
 
-        # Fallback: any unassigned point defaults to the general socket circuit or first circuit
+        # 5. Safety circuit: interlinked smoke detection / escape lighting
+        safety_pts = [p for p in updated_points if klass(p) == CircuitClass.SAFETY]
+        if safety_pts:
+            ckt_id = "CKT-SAF-01"
+            assigned_phase = phases[phase_idx % len(phases)]
+            phase_idx += 1
+            for p in safety_pts:
+                p.circuit_id = ckt_id
+            circuits.append(
+                Circuit(
+                    id=ckt_id,
+                    name="Fire Detection & Escape Lighting",
+                    description=f"Safety equipment for {', '.join(sorted(set(p.room_name for p in safety_pts)))}",
+                    circuit_type="safety",
+                    points_count=len(safety_pts),
+                    connected_load_w=sum(p.power_rating_w * p.quantity for p in safety_pts),
+                    phase=assigned_phase,
+                    cable=rules.get("safety_cable", "3 x 1.5 mm² Cu/PVC"),
+                    protection=rules.get("safety_mcb", "6A Type B"),
+                    rcd="Dedicated 30mA RCBO (not shared with socket RCD)",
+                    status="CALCULATED",
+                    review_notes=(
+                        "Dedicated unswitched circuit so detectors stay powered; "
+                        "protected separately from socket RCD to avoid nuisance loss of alarm."
+                    ),
+                )
+            )
+
+        # 6. ELV cabling (data / TV): listed in the schedule but with no mains protection
+        elv_pts = [p for p in updated_points if klass(p) == CircuitClass.ELV]
+        if elv_pts:
+            for p in elv_pts:
+                p.circuit_id = "CKT-ELV-01"
+            circuits.append(
+                Circuit(
+                    id="CKT-ELV-01",
+                    name="Data & TV Cabling (ELV)",
+                    description=f"Extra-low-voltage outlets for {', '.join(sorted(set(p.room_name for p in elv_pts)))}",
+                    circuit_type="elv",
+                    points_count=len(elv_pts),
+                    connected_load_w=0.0,
+                    phase="N/A",
+                    cable="Cat6 U/UTP LSZH / RG6 coaxial",
+                    protection="N/A (ELV)",
+                    rcd="N/A",
+                    status="CALCULATED",
+                    review_notes="Structured cabling home-runs to the patch point; keep 50 mm from mains cabling.",
+                )
+            )
+
+        # Fallback: any unassigned point defaults to the first circuit
         fallback_ckt = circuits[0].id if circuits else "CKT-GEN-01"
         for p in updated_points:
-            if not p.circuit_id:
+            if not p.circuit_id and klass(p) != CircuitClass.NONE:
                 p.circuit_id = fallback_ckt
 
         return updated_points, circuits

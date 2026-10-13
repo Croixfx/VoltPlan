@@ -1,6 +1,7 @@
 import math
 from typing import List, Optional
 from shapely.geometry import Point as ShapelyPoint
+from app.catalog import get_equipment
 from app.engineering_rules.registry import get_engineering_standard
 from app.schemas.floor_plan import RoomObservation, ArchitecturalFeature
 from app.schemas.electrical import ElectricalPoint
@@ -66,6 +67,20 @@ class ElectricalEngine:
                 image_path=image_path,
             )
             for item in appliance_list:
+                pt = cls._create_traceable_point(item, room, point_idx, canonical_plan)
+                points.append(pt)
+                point_idx += 1
+
+            # 4. Other catalog equipment (detection, ventilation, exterior, communications)
+            extra_list = standard.get_additional_equipment(
+                room_name=room.name,
+                area_m2=room.area_m2,
+                building_type=building_type,
+                room_bounds=room.bounds,
+                architectural_features=architectural_features,
+                image_path=image_path,
+            )
+            for item in extra_list:
                 pt = cls._create_traceable_point(item, room, point_idx, canonical_plan)
                 points.append(pt)
                 point_idx += 1
@@ -201,6 +216,15 @@ class ElectricalEngine:
                 geom_used = "dedicated_appliance_wall"
                 reasoning = f"Dedicated outlet for {p_type.replace('_', ' ')} with dedicated protective device."
                 placement_status = "proposed" if is_scale_ver else "needs_confirmation"
+
+            else:
+                spec = get_equipment(p_type)
+                if spec is not None:
+                    geom_used = f"{spec.mount.value}_mounted_catalog_rule"
+                    height = f" at {spec.mounting_height_mm} mm AFFL" if spec.mounting_height_mm else ""
+                    reasoning = f"{spec.name} ({spec.mount.value} mounted{height}). {item.get('review_notes', '')}".strip()
+                    if "REVIEW" not in item.get("status", ""):
+                        placement_status = "proposed" if is_scale_ver else "needs_confirmation"
 
         return ElectricalPoint(
             id=f"pt_{point_idx:03d}",

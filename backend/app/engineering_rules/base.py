@@ -45,6 +45,18 @@ class BaseElectricalStandard(ABC):
         """Calculates heavy appliance connections (cooker, water heater, AC)."""
         pass
 
+    def get_additional_equipment(
+        self,
+        room_name: str,
+        area_m2: Optional[float],
+        building_type: str,
+        room_bounds: Optional[List[float]] = None,
+        architectural_features: Optional[List[Any]] = None,
+        image_path: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Other catalog equipment (detection, ventilation, communications, ...). Optional per standard."""
+        return []
+
     @abstractmethod
     def get_circuit_rules(self) -> Dict[str, Any]:
         """Returns circuit capacity, breaker sizing, and cable rules."""

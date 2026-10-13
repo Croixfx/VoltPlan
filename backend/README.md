@@ -88,3 +88,19 @@ pytest -v
 - `GET /api/projects/{id}/analysis` — Get latest structured analysis results
 - `GET /api/projects/{id}/boq` — Get dynamic bill of quantities
 - `GET /api/projects/{id}/cost-estimate` — Get cost estimate in RWF
+
+---
+
+## Equipment Catalog
+
+All placeable equipment is declared once in `app/catalog/equipment.py` (`EquipmentSpec`): symbol, mounting,
+default load, cable/protection, circuit class, cable run and BOQ lines with prices. The circuit engine, BOQ
+engine and `GET /api/equipment` read from it.
+
+To add equipment:
+
+1. `register_equipment(EquipmentSpec(...))` in `app/catalog/equipment.py`.
+2. To have it proposed automatically, add a rule in `get_additional_equipment` of the engineering standard
+   (`app/engineering_rules/rs_iec_60364.py`) using `catalog_point(type_id, coord, notes)`.
+3. Add the type to `ElectricalPointType` in `lib/shared/models/electrical_point.dart` and a symbol in
+   `floor_plan_painter.dart`.

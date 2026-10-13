@@ -8,7 +8,7 @@ class ElectricalPoint(BaseModel):
     room_name: str
     type: str = Field(
         ...,
-        description="lighting, twin_socket, single_socket, ac_point, cooker_point, water_heater, switch_1way, switch_2way, distribution_board",
+        description="lighting, twin_socket, single_socket, ac_point, cooker_point, water_heater, switch_1way, switch_2way, distribution_board, outdoor_light, extractor_fan, smoke_detector, emergency_light, data_point, tv_point (see app.catalog)",
     )
     quantity: int = Field(1, ge=1)
     power_rating_w: float = Field(..., ge=0.0)
