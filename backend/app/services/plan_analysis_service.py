@@ -12,6 +12,7 @@ from app.services.electrical_engine import ElectricalEngine
 from app.services.circuit_engine import CircuitEngine
 from app.services.boq_engine import BoqEngine
 from app.services.cost_service import CostService
+from app.services.point_edit_service import PointEditService
 
 
 class PlanAnalysisService:
@@ -38,6 +39,9 @@ class PlanAnalysisService:
         if not analysis:
             analysis = Analysis(project_id=project_id)
             db.add(analysis)
+
+        # Manually placed / moved points from the previous run are re-applied after regeneration
+        previous_points_data = list(analysis.electrical_points_data or [])
 
         analysis.status = "processing"
         analysis.current_step = "preparing_document"
@@ -103,11 +107,11 @@ class PlanAnalysisService:
             if not canonical_plan.is_scale_verified:
                 scale_warn = "Plan scale is uncalibrated. Physical coordinates and areas are heuristic architectural estimates."
                 if scale_warn not in analysis.warnings:
-                    analysis.warnings.append(scale_warn)
+                    analysis.warnings = [*analysis.warnings, scale_warn]
             if canonical_plan.provenance.unresolved_geometry:
                 for unres in canonical_plan.provenance.unresolved_geometry:
                     if unres not in analysis.warnings:
-                        analysis.warnings.append(unres)
+                        analysis.warnings = [*analysis.warnings, unres]
             db.commit()
 
             # Step 3: Deterministic Electrical Engineering Engine
@@ -124,8 +128,18 @@ class PlanAnalysisService:
                 canonical_plan=canonical_plan,
             )
 
+            raw_points, manual_notes = PointEditService.merge_manual_points(
+                regenerated=raw_points,
+                previous_points_data=previous_points_data,
+                rooms=vision_result.rooms,
+                canonical_plan=canonical_plan,
+            )
+            for note in manual_notes:
+                if note not in analysis.warnings:
+                    analysis.warnings = [*analysis.warnings, note]
+
             # Step 4: Circuit Schedule Engine & Wiring Arcs
-            logger.info(f"[{project_id}] Step 4: Sizing and grouping circuits & generating CAD Bézier wiring arcs")
+            logger.info(f"[{project_id}] Step 4: Sizing and grouping circuits & generating CAD BÃ©zier wiring arcs")
             updated_points, circuits = CircuitEngine.generate_circuits(
                 points=raw_points,
                 standard_name=project.standard,

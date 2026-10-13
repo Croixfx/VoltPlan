@@ -460,6 +460,11 @@ class FloorPlanPainter extends CustomPainter {
       ..strokeWidth = 1.6
       ..style = PaintingStyle.stroke;
 
+    // Manual (user-placed / user-moved) points: amber dashed ring + tag
+    if (pt.isManual) {
+      _drawManualMarker(canvas, pos);
+    }
+
     // Selection Halo
     if (isSelected) {
       final glowPaint = Paint()
@@ -646,6 +651,37 @@ class FloorPlanPainter extends CustomPainter {
         _drawDedicatedPoint(canvas, pos, 'OL', symbolColor, bgPaint, strokePaint, isDark);
         break;
     }
+  }
+
+  static const Color manualColor = Color(0xFFF59E0B);
+
+  void _drawManualMarker(Canvas canvas, Offset pos) {
+    final ring = Paint()
+      ..color = manualColor
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    const radius = 13.0;
+    const dashes = 12;
+    for (int i = 0; i < dashes; i++) {
+      final start = (2 * math.pi / dashes) * i;
+      canvas.drawArc(
+        Rect.fromCircle(center: pos, radius: radius),
+        start,
+        math.pi / dashes,
+        false,
+        ring,
+      );
+    }
+    final tag = pos + const Offset(11, -11);
+    canvas.drawCircle(tag, 5, Paint()..color = manualColor);
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: 'M',
+        style: TextStyle(fontSize: 7, fontWeight: FontWeight.w800, color: Colors.white),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, tag - Offset(tp.width / 2, tp.height / 2));
   }
 
   void _drawIecSocket(

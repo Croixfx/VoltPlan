@@ -32,4 +32,16 @@ void main() {
     expect(pt.label, 'Interlinked Smoke Alarm');
     expect(pt.circuitId, 'CKT-SAF-01');
   });
+
+  test('manual flags are parsed from the backend', () {
+    final pt = ElectricalPoint.fromJson({
+      'id': 'pt_010',
+      'type': 'twin_socket',
+      'is_manual': true,
+      'manual_origin': 'moved',
+    });
+    expect(pt.isManual, isTrue);
+    expect(pt.manualOrigin, 'moved');
+    expect(ElectricalPoint.fromJson({'id': 'a', 'type': 'twin_socket'}).isManual, isFalse);
+  });
 }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/network/api_exceptions.dart';
 import '../../features/analysis/data/analysis_repository.dart';
 import '../../features/boq/data/boq_repository.dart';
+import '../../features/electrical/data/point_repository.dart';
 import '../../features/projects/data/project_repository.dart';
 import '../mock_data/mock_data.dart';
 import '../models/analysis_result.dart';
@@ -13,18 +14,21 @@ import '../models/boq_item.dart';
 import '../models/circuit.dart';
 import '../models/cost_estimate.dart';
 import '../models/electrical_point.dart';
+import '../models/equipment_option.dart';
 import '../models/project.dart';
 import '../models/room.dart';
 import '../models/wiring_arc.dart';
 
 class AppState extends ChangeNotifier {
-  AppState() {
+  AppState({PointRepository? pointRepository})
+      : _pointRepo = pointRepository ?? PointRepository() {
     _init();
   }
 
   // Repositories
   final ProjectRepository _projectRepo = ProjectRepository();
   final AnalysisRepository _analysisRepo = AnalysisRepository();
+  final PointRepository _pointRepo;
   final BoqRepository _boqRepo = BoqRepository();
 
   ThemeMode _themeMode = ThemeMode.light;
@@ -661,6 +665,83 @@ class AppState extends ChangeNotifier {
     _recomputeWiringArcs();
     notifyListeners();
   }
+
+  // ---------------------------------------------------------------------
+  // Manual equipment editing (backend is the source of truth)
+  // ---------------------------------------------------------------------
+  List<EquipmentOption> _equipmentCatalog = EquipmentOption.fallback;
+  List<EquipmentOption> get equipmentCatalog => _equipmentCatalog;
+
+  Future<void> loadEquipmentCatalog() async {
+    try {
+      final catalog = await _pointRepo.getEquipmentCatalog();
+      if (catalog.isNotEmpty) {
+        _equipmentCatalog = catalog;
+        notifyListeners();
+      }
+    } catch (_) {
+      // Keep the built-in fallback list.
+    }
+  }
+
+  String? _editBlocker(String projectId) {
+    if (projectId.startsWith('proj-')) {
+      return 'Manual editing needs this project to be synced with the backend. '
+          'Run the analysis against the server first.';
+    }
+    return null;
+  }
+
+  void _applyEditedAnalysis(AnalysisResult result) {
+    _currentAnalysisResult = result;
+    _rooms = result.rooms;
+    _electricalPoints = result.electricalPoints;
+    _circuits = result.circuits;
+    _boqItems = result.boqItems;
+    _backendCostEstimate = result.costEstimate;
+    _analysisWarnings = result.warnings;
+
+    final idx = _projects.indexWhere((p) => p.id == result.projectId);
+    if (idx != -1) {
+      _projects[idx] = _projects[idx].copyWith(
+        electricalPointsCount: result.electricalPoints.length,
+        circuitsCount: result.circuits.length,
+        estimatedCostRwf: result.costEstimate?.grandTotalRwf,
+      );
+      if (_selectedProject?.id == result.projectId) {
+        _selectedProject = _projects[idx];
+      }
+    }
+    if (_inspectedPoint != null) {
+      final id = _inspectedPoint!.id;
+      final matches = result.electricalPoints.where((p) => p.id == id);
+      _inspectedPoint = matches.isEmpty ? null : matches.first;
+    }
+    notifyListeners();
+  }
+
+  Future<String?> _runEdit(String projectId, Future<AnalysisResult> Function() action) async {
+    final blocker = _editBlocker(projectId);
+    if (blocker != null) return blocker;
+    try {
+      _applyEditedAnalysis(await action());
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  /// Returns null on success, otherwise the backend's rejection message.
+  Future<String?> addElectricalPoint(String projectId, String typeId, double x, double y) =>
+      _runEdit(projectId, () => _pointRepo.addPoint(projectId: projectId, typeId: typeId, x: x, y: y));
+
+  Future<String?> moveElectricalPoint(String projectId, String pointId, double x, double y) =>
+      _runEdit(projectId, () => _pointRepo.movePoint(projectId: projectId, pointId: pointId, x: x, y: y));
+
+  Future<String?> deleteElectricalPoint(String projectId, String pointId) =>
+      _runEdit(projectId, () => _pointRepo.deletePoint(projectId: projectId, pointId: pointId));
 
   void nudgePoint(String pointId, double dxRatio, double dyRatio) {
     final idx = _electricalPoints.indexWhere((p) => p.id == pointId);

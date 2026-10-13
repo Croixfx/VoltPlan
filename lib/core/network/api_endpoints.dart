@@ -2,6 +2,10 @@ class ApiEndpoints {
   // Default to localhost for desktop/local dev. Can be configured at runtime or via settings.
   static String baseUrl = 'http://127.0.0.1:8000/api';
 
+  static String get equipment => '$baseUrl/equipment';
+  static String projectPoints(String id) => '$baseUrl/projects/$id/points';
+  static String projectPoint(String id, String pointId) =>
+      '$baseUrl/projects/$id/points/$pointId';
   static String projectScale(String id) => '$baseUrl/projects/$id/scale';
   static String get health => '$baseUrl/health';
   static String get projects => '$baseUrl/projects';

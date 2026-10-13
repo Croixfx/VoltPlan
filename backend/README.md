@@ -80,6 +80,10 @@ pytest -v
 - `POST /api/projects` — Create project
 - `PUT /api/projects/{id}/scale` — Calibrate plan scale (two points as image ratios + real distance in mm)
 - `GET /api/projects/{id}/scale` / `DELETE /api/projects/{id}/scale` — Read or clear the calibration
+- `POST /api/projects/{id}/points` — Place catalog equipment (validated against rooms and the catalog's room rules)
+- `PATCH /api/projects/{id}/points/{point_id}` — Move a point / change quantity (marks it manual)
+- `DELETE /api/projects/{id}/points/{point_id}` — Delete a point. All three regenerate circuits, BOQ and cost, and return the full analysis.
+  Manual points are kept when the analysis is re-run.
 - `GET /api/projects` — List projects (with search filter)
 - `GET /api/projects/{id}` — Get project by ID
 - `POST /api/projects/{id}/plan` — Upload architectural plan (PDF/PNG/JPG up to 25 MB)
