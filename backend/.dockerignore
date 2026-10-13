@@ -1,0 +1,16 @@
+# Keep the image small and make sure no local data or secrets are baked into it
+.env
+.env.*
+!.env.example
+*.db
+uploads/
+eval_plans/
+eval_report.*
+tests/
+tools/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.git/

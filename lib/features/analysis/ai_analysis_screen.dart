@@ -1,3 +1,4 @@
+import '../floor_plan/geometry_editor_screen.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -58,6 +59,22 @@ class _AiAnalysisScreenState extends State<AiAnalysisScreen> {
               isFinished ? 'Analysis Complete' : 'Analyzing Floor Plan',
             ),
             actions: [
+              if (error != null &&
+                  (error.contains('Geometry check') || error.contains('manually corrected')))
+                TextButton.icon(
+                  key: const Key('review-rooms-doors'),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => GeometryEditorScreen(
+                        state: widget.state,
+                        project: widget.state.selectedProject ?? widget.project,
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.meeting_room_outlined, size: 16),
+                  label: const Text('Rooms & doors'),
+                ),
               if (isFinished || error != null)
                 TextButton.icon(
                   onPressed: () {

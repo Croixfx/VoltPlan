@@ -9,18 +9,19 @@ from app.schemas.analysis import AnalysisResultResponse, AnalysisStatusResponse
 from app.schemas.boq import BOQResponse, CostEstimateResponse, BOQItem
 from app.schemas.floor_plan import RoomObservation, ArchitecturalFeature
 from app.schemas.electrical import ElectricalPoint, Circuit, WiringArc
+from app.services.geometry_validator import GeometryIssue
 from app.services.plan_analysis_service import PlanAnalysisService
 
 router = APIRouter(prefix="/projects", tags=["Analysis"])
 
 
 @router.post("/{project_id}/analyze", response_model=AnalysisResultResponse)
-async def trigger_analysis(project_id: str, db: Session = Depends(get_db)):
+async def trigger_analysis(project_id: str, reset_geometry: bool = False, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found.")
 
-    analysis = await PlanAnalysisService.run_pipeline(project_id, db)
+    analysis = await PlanAnalysisService.run_pipeline(project_id, db, reset_geometry=reset_geometry)
     return _build_analysis_response(project, analysis)
 
 
@@ -139,6 +140,9 @@ def _build_analysis_response(project: Project, analysis: Analysis) -> AnalysisRe
         observations=analysis.observations or [],
         warnings=analysis.warnings or [],
         canonical_geometry=canonical_geom,
+        geometry_reviewed=bool(analysis.geometry_reviewed),
+        geometry_needs_regeneration=bool(analysis.geometry_dirty),
+        geometry_issues=[GeometryIssue(**i) for i in (analysis.geometry_issues_data or [])],
         electrical_points=electrical_points,
         circuits=circuits,
         wiring_arcs=wiring_arcs,

@@ -1,0 +1,61 @@
+# Render Blueprint for the VoltPlan backend (https://render.com/docs/blueprint-spec).
+# Render dashboard > New > Blueprint > pick this repository.
+#
+# FREE-TIER SETUP for trying the app out. Everything here is on Render's free plans:
+#
+#   * Web service: free. It spins down after ~15 minutes without traffic, so the first request after a
+#     pause can take about a minute while it wakes up (the app's request timeout is 30-60 s: retry once).
+#   * Uploaded floor plans are stored on the container's temporary disk and are LOST whenever the service
+#     restarts, redeploys or spins down. A project whose plan file has vanished must have its plan
+#     uploaded again before it can be analysed.
+#   * Database: free PostgreSQL, so project data survives restarts of the web service. A free Render
+#     database expires after a limited period (30 days at the time of writing) and is then deleted;
+#     there are no backups. Do not rely on this setup for real client work.
+#
+# CHECK BEFORE APPLYING (not verifiable from the repo): that the plans below are still free in the Render
+# dashboard, which also lists any limit such as one free database per workspace.
+#
+# For real use switch the web service to a paid plan, add a persistent disk mounted at /app/uploads
+# (or move uploads to object storage), and use a paid database. The same backend/Dockerfile runs unchanged
+# on Railway or Fly.io: set the environment variables below and attach a Postgres database.
+
+databases:
+  - name: voltplan-db
+    databaseName: voltplan
+    user: voltplan
+    plan: free
+    ipAllowList: []          # private network only
+
+services:
+  - type: web
+    name: voltplan-api
+    runtime: docker
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    plan: free
+    # Deploy the branch you want to run. Switch to main once it has been merged.
+    branch: remediation/phase1-geometry
+    healthCheckPath: /api/health
+    autoDeploy: false
+    # No persistent disk on the free plan: uploads go to the container's temporary /app/uploads.
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: voltplan-db
+          property: connectionString
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "False"
+      # Required: shared key the mobile app sends as X-API-Key. Enter it in the dashboard (never commit it).
+      - key: API_KEY
+        sync: false
+      # mock = fake demo rooms for every upload; gemini / openai (with the matching key) read real plans.
+      # Deliberately NOT given a value here: Render re-applies blueprint values on every sync, which would
+      # silently switch a deployment back to mock data. Set it in the dashboard (Environment).
+      - key: AI_PROVIDER
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false

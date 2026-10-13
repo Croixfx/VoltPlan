@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.logging import setup_logging, logger
+from app.core.security import check_deployment_safety
 from app.db.database import init_db
 from app.api.router import api_router
 
@@ -12,6 +13,9 @@ from app.api.router import api_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    check_deployment_safety(settings)
+    if not settings.API_KEY:
+        logger.warning("API_KEY is not set: the API is open to anyone who can reach it.")
     logger.info("Initializing VoltPlan database...")
     init_db()
     logger.info(f"VoltPlan backend started. AI Provider: '{settings.AI_PROVIDER}', Standard: '{settings.DEFAULT_STANDARD}'")

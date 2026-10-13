@@ -7,6 +7,8 @@ import '../../core/widgets/status_badge.dart';
 import '../../shared/models/project.dart';
 import '../../shared/models/electrical_point.dart';
 import '../../shared/state/app_state.dart';
+import '../floor_plan/geometry_editor_screen.dart';
+import '../floor_plan/widgets/floor_plan_painter.dart';
 import '../floor_plan/widgets/plan_drawing_viewer.dart';
 import 'circuits_screen.dart';
 
@@ -30,7 +32,148 @@ class _ElectricalPlanCanvasScreenState
   final TransformationController _transformationController =
       TransformationController();
   String _activeLayer = 'all'; // 'all', 'lighting', 'power', 'distribution'
-  ElectricalPoint? _selectedPoint;
+  String? _selectedId;
+
+  // Manual equipment editing
+  bool _editMode = false;
+  bool _busy = false;
+  String? _armedTypeId; // equipment type armed for placement
+  String? _dragId;
+  Offset? _dragOrigin;
+
+  String get _projectId => (widget.state.selectedProject ?? widget.project).id;
+
+  /// Always resolved from the live list so it reflects backend refreshes.
+  ElectricalPoint? get _selectedPoint {
+    final id = _selectedId;
+    if (id == null) return null;
+    for (final p in widget.state.electricalPoints) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
+  void _toast(String message, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: error ? Colors.red.shade700 : null,
+          duration: Duration(seconds: error ? 5 : 2),
+        ),
+      );
+  }
+
+  void _toggleEditMode() {
+    setState(() {
+      _editMode = !_editMode;
+      _armedTypeId = null;
+    });
+    if (_editMode) widget.state.loadEquipmentCatalog();
+  }
+
+  Future<void> _runEdit(Future<String?> Function() action, {String? success}) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final error = await action();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (error != null) {
+      _toast(error, error: true);
+    } else if (success != null) {
+      _toast(success);
+    }
+  }
+
+  void _onPlanTapEdit(double x, double y, ElectricalPoint? hit) {
+    if (_busy) return;
+    final armed = _armedTypeId;
+    if (armed != null) {
+      final catalog = widget.state.equipmentCatalog;
+      final name = catalog.where((o) => o.typeId == armed).map((o) => o.name).firstOrNull ?? armed;
+      _runEdit(
+        () => widget.state.addElectricalPoint(_projectId, armed, x, y),
+        success: '$name placed. Circuits, BOQ and cost updated.',
+      );
+      return;
+    }
+    setState(() => _selectedId = hit?.id);
+  }
+
+  void _onDragUpdate(ElectricalPoint point, double x, double y) {
+    if (_busy) return;
+    if (_dragId != point.id) {
+      _dragId = point.id;
+      _dragOrigin = Offset(point.xRatio, point.yRatio);
+    }
+    widget.state.updatePointPosition(point.id, x, y);
+    setState(() {});
+  }
+
+  Future<void> _onDragEnd(ElectricalPoint _) async {
+    final id = _dragId;
+    final origin = _dragOrigin;
+    _dragId = null;
+    _dragOrigin = null;
+    if (id == null || origin == null || _busy) return;
+
+    ElectricalPoint? current;
+    for (final p in widget.state.electricalPoints) {
+      if (p.id == id) current = p;
+    }
+    if (current == null) return;
+
+    final x = current.xRatio;
+    final y = current.yRatio;
+    setState(() => _busy = true);
+    final error = await widget.state.moveElectricalPoint(_projectId, id, x, y);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (error != null) {
+      // The backend rejected the new position: snap back to where it was.
+      widget.state.updatePointPosition(id, origin.dx, origin.dy);
+      setState(() {});
+      _toast(error, error: true);
+    }
+  }
+
+  void _nudgeSelected(double dx, double dy) {
+    final point = _selectedPoint;
+    if (point == null) return;
+    _runEdit(() => widget.state.moveElectricalPoint(
+          _projectId,
+          point.id,
+          (point.xRatio + dx).clamp(0.0, 1.0),
+          (point.yRatio + dy).clamp(0.0, 1.0),
+        ));
+  }
+
+  Future<void> _deleteSelected() async {
+    final point = _selectedPoint;
+    if (point == null || _busy) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete equipment?'),
+        content: Text(
+          'Remove ${point.label} from ${point.roomName}? '
+          'Circuits, BOQ and cost will be regenerated.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _runEdit(
+      () => widget.state.deleteElectricalPoint(_projectId, point.id),
+      success: '${point.label} deleted.',
+    );
+    if (mounted) setState(() => _selectedId = null);
+  }
 
   void _resetZoom() {
     _transformationController.value = Matrix4.identity();
@@ -332,6 +475,21 @@ class _ElectricalPlanCanvasScreenState
         title: const Text('Electrical Plan'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.meeting_room_outlined),
+            tooltip: 'Fix rooms & doors',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => GeometryEditorScreen(state: widget.state, project: widget.project),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(_editMode ? Icons.edit_off_outlined : Icons.edit_outlined),
+            tooltip: _editMode ? 'Exit edit mode' : 'Edit equipment',
+            onPressed: _toggleEditMode,
+          ),
+          IconButton(
             icon: const Icon(Icons.menu_book_outlined),
             tooltip: 'Symbol Legend & Standards',
             onPressed: _showLegendBottomSheet,
@@ -395,19 +553,15 @@ class _ElectricalPlanCanvasScreenState
                       isDark: isDark,
                       showPointsOverlay: true,
                       wiringArcs: widget.state.wiringArcs,
-                      onPointTap: (point) {
-                        setState(() => _selectedPoint = point);
-                        widget.state.setInspectedPoint(point);
-                      },
-                      onPointPanUpdate: (point, newX, newY) {
-                        widget.state.updatePointPosition(point.id, newX, newY);
-                        setState(() {
-                          _selectedPoint = widget.state.electricalPoints.firstWhere(
-                            (p) => p.id == point.id,
-                            orElse: () => point,
-                          );
-                        });
-                      },
+                      onPointTap: _editMode
+                          ? null
+                          : (point) {
+                              setState(() => _selectedId = point.id);
+                              widget.state.setInspectedPoint(point);
+                            },
+                      onPlanTap: _editMode ? _onPlanTapEdit : null,
+                      onPointPanUpdate: _editMode ? _onDragUpdate : null,
+                      onPointPanEnd: _editMode ? _onDragEnd : null,
                     ),
                   ),
                 ),
@@ -464,9 +618,11 @@ class _ElectricalPlanCanvasScreenState
             bottom: 16,
             left: 16,
             right: 16,
-            child: _selectedPoint != null
-                ? _buildNudgeToolbar(_selectedPoint!, isDark)
-                : _buildHintBar(isDark),
+            child: _editMode
+                ? _buildEditPanel(isDark)
+                : (_selectedPoint != null
+                    ? _buildNudgeToolbar(_selectedPoint!, isDark)
+                    : _buildHintBar(isDark)),
           ),
         ],
       ),
@@ -539,44 +695,7 @@ class _ElectricalPlanCanvasScreenState
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                 tooltip: 'Done',
-                onPressed: () => setState(() => _selectedPoint = null),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Drag on canvas or nudge:',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-                ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildNudgeBtn(Icons.arrow_back, 'Left', () {
-                    widget.state.nudgePoint(point.id, -0.006, 0);
-                    _refreshSelectedPoint(point.id);
-                  }, isDark),
-                  const SizedBox(width: 4),
-                  _buildNudgeBtn(Icons.arrow_upward, 'Up', () {
-                    widget.state.nudgePoint(point.id, 0, -0.006);
-                    _refreshSelectedPoint(point.id);
-                  }, isDark),
-                  const SizedBox(width: 4),
-                  _buildNudgeBtn(Icons.arrow_downward, 'Down', () {
-                    widget.state.nudgePoint(point.id, 0, 0.006);
-                    _refreshSelectedPoint(point.id);
-                  }, isDark),
-                  const SizedBox(width: 4),
-                  _buildNudgeBtn(Icons.arrow_forward, 'Right', () {
-                    widget.state.nudgePoint(point.id, 0.006, 0);
-                    _refreshSelectedPoint(point.id);
-                  }, isDark),
-                ],
+                onPressed: () => setState(() => _selectedId = null),
               ),
             ],
           ),
@@ -585,13 +704,106 @@ class _ElectricalPlanCanvasScreenState
     );
   }
 
-  void _refreshSelectedPoint(String pointId) {
-    setState(() {
-      _selectedPoint = widget.state.electricalPoints.firstWhere(
-        (p) => p.id == pointId,
-        orElse: () => _selectedPoint!,
-      );
-    });
+  Widget _buildEditPanel(bool isDark) {
+    final point = _selectedPoint;
+    final catalog = widget.state.equipmentCatalog;
+    final muted = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+
+    String instruction;
+    if (_armedTypeId != null) {
+      final name = catalog.where((o) => o.typeId == _armedTypeId).map((o) => o.name).firstOrNull ?? _armedTypeId!;
+      instruction = 'Tap inside a room to place: $name';
+    } else if (point != null) {
+      instruction = '${point.label} • ${point.roomName}${point.isManual ? ' • manual' : ''}';
+    } else {
+      instruction = 'Tap a symbol to select it, or pick equipment below to place.';
+    }
+
+    return Container(
+      key: const Key('equipment-edit-panel'),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      decoration: BoxDecoration(
+        color: (isDark ? AppColors.surfaceDark : AppColors.surfaceLight).withValues(alpha: 0.97),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: FloorPlanPainter.manualColor, width: 1.5),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 14, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_busy) const LinearProgressIndicator(minHeight: 2),
+          Row(
+            children: [
+              const Icon(Icons.edit_outlined, size: 16, color: FloorPlanPainter.manualColor),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  instruction,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                  ),
+                ),
+              ),
+              if (point != null && _armedTypeId == null) ...[
+                _buildNudgeBtn(Icons.arrow_back, 'Nudge left', () => _nudgeSelected(-0.01, 0), isDark),
+                const SizedBox(width: 4),
+                _buildNudgeBtn(Icons.arrow_upward, 'Nudge up', () => _nudgeSelected(0, -0.01), isDark),
+                const SizedBox(width: 4),
+                _buildNudgeBtn(Icons.arrow_downward, 'Nudge down', () => _nudgeSelected(0, 0.01), isDark),
+                const SizedBox(width: 4),
+                _buildNudgeBtn(Icons.arrow_forward, 'Nudge right', () => _nudgeSelected(0.01, 0), isDark),
+                const SizedBox(width: 6),
+                IconButton(
+                  key: const Key('delete-point-button'),
+                  icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                  tooltip: 'Delete selected equipment',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  onPressed: _busy ? null : _deleteSelected,
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 36,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: catalog.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 6),
+              itemBuilder: (context, i) {
+                final option = catalog[i];
+                final armed = _armedTypeId == option.typeId;
+                return ChoiceChip(
+                  key: Key('equipment-chip-${option.typeId}'),
+                  avatar: Icon(option.pointType.icon, size: 16),
+                  label: Text(option.name, style: const TextStyle(fontSize: 12)),
+                  selected: armed,
+                  onSelected: _busy
+                      ? null
+                      : (on) => setState(() {
+                            _armedTypeId = on ? option.typeId : null;
+                            if (on) _selectedId = null;
+                          }),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Drag the highlighted handle to move • dashed amber ring = manual point (kept on re-analysis)',
+            style: TextStyle(fontSize: 10.5, color: muted),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildNudgeBtn(IconData icon, String tooltip, VoidCallback onTap, bool isDark) {
@@ -641,7 +853,7 @@ class _ElectricalPlanCanvasScreenState
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Drag anywhere to scroll/pan • Tap symbol to move & inspect • Pinch to zoom',
+                    'Drag to pan • Tap a symbol to inspect • Pinch to zoom • Pencil icon edits equipment',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(

@@ -52,6 +52,24 @@ class ElectricalPoint(BaseModel):
         None,
         description="Human-readable architectural and engineering justification for point placement",
     )
+    # Manual editing: user-placed / user-moved points survive analysis re-runs
+    is_manual: bool = Field(False, description="True if the user placed or moved this point")
+    manual_origin: Optional[str] = Field(None, description="'added' (user-created) or 'moved' (auto point moved by user)")
+    original_x_ratio: Optional[float] = Field(None, description="Auto-generated X before the user moved the point")
+    original_y_ratio: Optional[float] = Field(None, description="Auto-generated Y before the user moved the point")
+
+
+class PointCreate(BaseModel):
+    type: str = Field(..., description="Equipment type id from the catalog")
+    x_ratio: float = Field(..., ge=0.0, le=1.0)
+    y_ratio: float = Field(..., ge=0.0, le=1.0)
+    quantity: int = Field(1, ge=1, le=50)
+
+
+class PointUpdate(BaseModel):
+    x_ratio: Optional[float] = Field(None, ge=0.0, le=1.0)
+    y_ratio: Optional[float] = Field(None, ge=0.0, le=1.0)
+    quantity: Optional[int] = Field(None, ge=1, le=50)
 
 
 class Circuit(BaseModel):

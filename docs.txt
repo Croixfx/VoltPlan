@@ -6,6 +6,26 @@ Tests: backend 65 passed / 1 skipped; Flutter 32 passed; flutter analyze clean.
 (The original build brief that used to live in this file is still in git history.)
 
 
+UPDATE - ROOM/DOOR EDITOR, GEOMETRY CHECKS, CALCULATIONS (after the sections below were written)
+-----------------------------------------------------------------------------------------------
+  * Rooms & doors editor (app: project overview > Rooms & Doors; canvas toolbar; analysis error).
+    Rename rooms, drag corners to reshape, slide doors along walls, add/delete rooms and doors,
+    then 'Regenerate equipment'. Manual equipment is kept. Re-running the AI will not silently
+    discard corrections (409 unless reset_geometry=true).
+  * Geometry checks run before generation (closed boundaries, overlaps, doors on walls, sizes).
+    Errors stop generation and are listed; nothing is guessed.
+  * Voltage drop per circuit and maximum demand: GET /api/projects/{id}/calculations and the
+    Calculations screen. PRELIMINARY: needs an electrician's review (docs/CALCULATION_REVIEW.md).
+  * Cable current-carrying capacity (Ib <= In <= Iz, IEC 60364-5-52 Table B.52.2 with ambient and
+    grouping factors) is checked per circuit, with selectable installation method / ambient / bunching.
+    FINDING: the generated 2.5 mm2 / 20 A socket radials, water heater and 6 mm2 / 32 A cooker circuits pass
+    only when NOT bunched with another circuit (87 %, 87 % and 84 % of capacity). The table values were
+    transcribed from public web pages (B2 and C rows cross-checked, A2 and grouping factors not fully):
+    an electrician must verify them (docs/CALCULATION_REVIEW.md section 3).
+  * Real-plan evaluation harness: backend/tools/evaluate_plans.py. NOT YET RUN on real plans:
+    it needs an AI key and 3-5 electrician-designed plans (backend/eval_plans/README.md).
+  * Rooms remain axis-aligned rectangles; an L-shaped room is two adjacent rectangles.
+
 1. WHAT VOLTPLAN DOES
 ---------------------
 VoltPlan is a Flutter app (Android, iOS, web, desktop) with a FastAPI backend.

@@ -79,6 +79,24 @@ class EquipmentSpec:
     cable_run_m: float = 0.0                  # average cable run per point
     dedicated: Optional[DedicatedCircuit] = None
     boq_lines: Tuple[BoqLine, ...] = field(default_factory=tuple)
+    # Room-type rules, matched as keywords against the room name / type.
+    # Empty `allowed_rooms` means "any room"; `forbidden_rooms` always wins.
+    allowed_rooms: Tuple[str, ...] = ()
+    forbidden_rooms: Tuple[str, ...] = ()
+    room_rule_note: str = ""
+
+    def check_room(self, room_name: str, room_type: str = "") -> Optional[str]:
+        """Returns a human-readable rejection reason, or None if the room is acceptable."""
+        text = f"{room_name} {room_type}".lower()
+        note = f" {self.room_rule_note}" if self.room_rule_note else ""
+        if any(k in text for k in self.forbidden_rooms):
+            return f"{self.name} is not allowed in '{room_name}'.{note}"
+        if self.allowed_rooms and not any(k in text for k in self.allowed_rooms):
+            return (
+                f"{self.name} can only be placed in: {', '.join(self.allowed_rooms)} "
+                f"(not '{room_name}').{note}"
+            )
+        return None
 
     def to_dict(self) -> dict:
         return {
@@ -93,6 +111,8 @@ class EquipmentSpec:
             "cable": self.cable,
             "protection": self.protection,
             "rule_reference": self.rule_reference,
+            "allowed_rooms": list(self.allowed_rooms),
+            "forbidden_rooms": list(self.forbidden_rooms),
         }
 
 
@@ -126,9 +146,14 @@ def circuit_class_of(type_id: str) -> Optional[CircuitClass]:
 # Catalog. Order matters: BOQ lines are emitted in registration order.
 # --------------------------------------------------------------------------
 _SOCKETS_SWITCHES = "Sockets & Switches"
+_WET = ("bath", "shower", "toilet", "wc", "washroom")
+_KITCHEN = ("kitchen", "pantry")
+_UTILITY = ("laundry", "utility")
+_EXTERIOR = ("veranda", "balcony", "terrace", "porch", "entrance", "foyer",
+             "garage", "garden", "exterior", "outdoor", "patio")
 
 register_equipment(EquipmentSpec(
-    type_id="twin_socket", name="13A Twin Socket Outlet", category=EquipmentCategory.SOCKET,
+    type_id="twin_socket", forbidden_rooms=_WET, room_rule_note="RS IEC 60364-7-701: switched twin sockets are not permitted in bathrooms; use a shaver unit outside Zone 2.", name="13A Twin Socket Outlet", category=EquipmentCategory.SOCKET,
     symbol="socket_double", mount=Mount.WALL, mounting_height_mm=300, default_power_w=250.0,
     circuit_class=CircuitClass.SOCKET, cable="3 x 2.5 mm² Cu/PVC", protection="20A Type B MCB + 30mA RCD",
     rule_reference="RS IEC 60364-4-41: Socket Outlets with 30mA RCD",
@@ -173,7 +198,7 @@ register_equipment(EquipmentSpec(
 ))
 
 register_equipment(EquipmentSpec(
-    type_id="cooker_point", name="45A Cooker Control Unit", category=EquipmentCategory.APPLIANCE,
+    type_id="cooker_point", allowed_rooms=_KITCHEN, room_rule_note="A cooker control unit belongs in the kitchen.", name="45A Cooker Control Unit", category=EquipmentCategory.APPLIANCE,
     symbol="cooker", mount=Mount.WALL, mounting_height_mm=1300, default_power_w=6000.0,
     circuit_class=CircuitClass.DEDICATED, cable="3 x 6.0 mm² Cu/PVC", protection="32A Type B MCB",
     rule_reference="RS IEC 60364-5-52: Electric Range / Cooker Circuit",
@@ -190,7 +215,7 @@ register_equipment(EquipmentSpec(
 ))
 
 register_equipment(EquipmentSpec(
-    type_id="water_heater", name="Water Heater Isolator", category=EquipmentCategory.APPLIANCE,
+    type_id="water_heater", allowed_rooms=_WET + _KITCHEN + _UTILITY, room_rule_note="Fixed water heaters belong in bathrooms, kitchens or utility rooms.", name="Water Heater Isolator", category=EquipmentCategory.APPLIANCE,
     symbol="water_heater", mount=Mount.WALL, mounting_height_mm=2000, default_power_w=2500.0,
     circuit_class=CircuitClass.DEDICATED, cable="3 x 2.5 mm² Cu/PVC", protection="20A Type B MCB + 30mA RCD",
     rule_reference="RS IEC 60364-7-701: Fixed Water Heating Equipment",
@@ -206,7 +231,7 @@ register_equipment(EquipmentSpec(
 ))
 
 register_equipment(EquipmentSpec(
-    type_id="ac_point", name="Air Conditioner Isolator", category=EquipmentCategory.APPLIANCE,
+    type_id="ac_point", forbidden_rooms=_WET, room_rule_note="Air-conditioning equipment is not permitted in wet rooms.", name="Air Conditioner Isolator", category=EquipmentCategory.APPLIANCE,
     symbol="ac", mount=Mount.WALL, mounting_height_mm=2200, default_power_w=2000.0,
     circuit_class=CircuitClass.DEDICATED, cable="3 x 2.5 mm² Cu/PVC", protection="16A Type C MCB",
     rule_reference="RS IEC 60364-5-52: Air Conditioning Motor Load (Type C Curve)",
@@ -235,7 +260,7 @@ register_equipment(EquipmentSpec(
 # --- Equipment added through the catalog -----------------------------------
 
 register_equipment(EquipmentSpec(
-    type_id="outdoor_light", name="Outdoor Wall Luminaire", category=EquipmentCategory.LIGHTING,
+    type_id="outdoor_light", allowed_rooms=_EXTERIOR, room_rule_note="Outdoor luminaires belong in exterior or entrance spaces.", name="Outdoor Wall Luminaire", category=EquipmentCategory.LIGHTING,
     symbol="light_wall", mount=Mount.WALL, mounting_height_mm=2200, default_power_w=20.0,
     circuit_class=CircuitClass.LIGHTING, cable="3 x 1.5 mm² Cu/PVC", protection="10A Type B MCB",
     rule_reference="RS IEC 60364-5-52 / IEC 60598-2-5: Exterior Luminaires (min. IP54)",
@@ -247,7 +272,7 @@ register_equipment(EquipmentSpec(
 ))
 
 register_equipment(EquipmentSpec(
-    type_id="extractor_fan", name="Extractor Fan", category=EquipmentCategory.VENTILATION,
+    type_id="extractor_fan", allowed_rooms=_WET + _KITCHEN + _UTILITY, room_rule_note="Extract fans serve wet rooms, kitchens and utility rooms.", name="Extractor Fan", category=EquipmentCategory.VENTILATION,
     symbol="fan", mount=Mount.CEILING, mounting_height_mm=None, default_power_w=25.0,
     circuit_class=CircuitClass.LIGHTING, cable="3 x 1.5 mm² Cu/PVC", protection="10A Type B MCB",
     rule_reference="RS IEC 60364-7-701: Fans in bathroom zones (min. IPX4); ventilation for wet rooms",
@@ -259,7 +284,7 @@ register_equipment(EquipmentSpec(
 ))
 
 register_equipment(EquipmentSpec(
-    type_id="smoke_detector", name="Smoke Detector (Mains, Interlinked)", category=EquipmentCategory.SAFETY,
+    type_id="smoke_detector", forbidden_rooms=_WET + _KITCHEN, room_rule_note="Steam and cooking fumes cause false alarms; use a heat detector instead.", name="Smoke Detector (Mains, Interlinked)", category=EquipmentCategory.SAFETY,
     symbol="smoke_detector", mount=Mount.CEILING, mounting_height_mm=None, default_power_w=5.0,
     circuit_class=CircuitClass.SAFETY, cable="3 x 1.5 mm² Cu/PVC", protection="6A Type B MCB",
     rule_reference="EN 14604 / IEC 60364-5-56: Fire detection and alarm (mains with battery backup)",
@@ -283,7 +308,7 @@ register_equipment(EquipmentSpec(
 ))
 
 register_equipment(EquipmentSpec(
-    type_id="data_point", name="Data Outlet (Cat6)", category=EquipmentCategory.COMMUNICATIONS,
+    type_id="data_point", forbidden_rooms=_WET, room_rule_note="Communications outlets are not permitted in wet rooms.", name="Data Outlet (Cat6)", category=EquipmentCategory.COMMUNICATIONS,
     symbol="data", mount=Mount.WALL, mounting_height_mm=300, default_power_w=0.0,
     circuit_class=CircuitClass.ELV, cable="Cat6 U/UTP LSZH", protection="N/A (ELV)",
     rule_reference="ISO/IEC 11801 / TIA-568: Structured cabling outlet",
@@ -298,7 +323,7 @@ register_equipment(EquipmentSpec(
 ))
 
 register_equipment(EquipmentSpec(
-    type_id="tv_point", name="TV / Satellite Outlet", category=EquipmentCategory.COMMUNICATIONS,
+    type_id="tv_point", forbidden_rooms=_WET, room_rule_note="Communications outlets are not permitted in wet rooms.", name="TV / Satellite Outlet", category=EquipmentCategory.COMMUNICATIONS,
     symbol="tv", mount=Mount.WALL, mounting_height_mm=1100, default_power_w=0.0,
     circuit_class=CircuitClass.ELV, cable="RG6 coaxial", protection="N/A (ELV)",
     rule_reference="EN 50083 / IEC 60728: Home distribution network outlet",
@@ -313,7 +338,7 @@ register_equipment(EquipmentSpec(
 ))
 
 register_equipment(EquipmentSpec(
-    type_id="distribution_board", name="Consumer Unit / Distribution Board", category=EquipmentCategory.DISTRIBUTION,
+    type_id="distribution_board", forbidden_rooms=_WET, room_rule_note="Distribution boards must not be installed in wet rooms.", name="Consumer Unit / Distribution Board", category=EquipmentCategory.DISTRIBUTION,
     symbol="db", mount=Mount.WALL, mounting_height_mm=1500, default_power_w=0.0,
     circuit_class=CircuitClass.NONE, cable=None, protection="100A DP main isolator",
     rule_reference="IEC 61439-3: Distribution boards",

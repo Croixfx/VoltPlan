@@ -1,6 +1,7 @@
 import os
 import json
 import base64
+import asyncio
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List
 import httpx
@@ -8,6 +9,70 @@ import httpx
 from app.core.config import settings
 from app.core.logging import logger
 from app.schemas.floor_plan import VisionAnalysisResult, RoomObservation, ArchitecturalFeature
+
+
+import re
+
+from pydantic import ValidationError
+
+
+def redact(text: str, *secrets: str) -> str:
+    """Remove API keys from text that is logged or returned to a client (HTTP libraries put full URLs in errors)."""
+    for secret in secrets:
+        if secret and len(secret) >= 4:
+            text = text.replace(secret, "***")
+    return re.sub(r"([?&](?:key|api_key|apikey)=)[^&\s'\"]+", r"\1***", text)
+
+
+def describe_http_error(response: httpx.Response, *secrets: str) -> str:
+    """'HTTP 404: models/x is not found' from a provider error response. Never includes the request URL, and any
+    secret the provider echoes back in its message is removed."""
+    detail = ""
+    try:
+        body = response.json()
+        err = body.get("error") if isinstance(body, dict) else None
+        if isinstance(err, dict):
+            detail = str(err.get("message") or err.get("status") or "")
+        elif isinstance(err, str):
+            detail = err
+    except Exception:
+        pass
+    if not detail:
+        detail = (response.text or "").strip()[:200]
+    return redact(f"HTTP {response.status_code}" + (f": {detail[:300]}" if detail else ""), *secrets)
+
+
+# Temporary provider-side failures worth another attempt (rate limit / overload / gateway errors). Client errors
+# such as 400, 401, 403 or 404 mean the request itself is wrong and are never retried.
+RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+RETRY_DELAYS_S = (2.0, 5.0)
+
+
+async def post_with_retry(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Response:
+    """POST, retrying a few times on temporary provider errors (e.g. Gemini 503 "high demand")."""
+    response = await client.post(url, **kwargs)
+    for delay in RETRY_DELAYS_S:
+        if response.status_code not in RETRY_STATUSES:
+            break
+        logger.warning(f"AI provider answered HTTP {response.status_code}; retrying in {delay:.0f} s")
+        await asyncio.sleep(delay)
+        response = await client.post(url, **kwargs)
+    return response
+
+
+def gemini_model_path(model: str) -> str:
+    return model if model.startswith("models/") else f"models/{model}"
+
+
+def _format_error(provider: str, e: Exception, *secrets: str) -> str:
+    if isinstance(e, json.JSONDecodeError):
+        return f"{provider} did not return valid JSON (the model answered with something else)."
+    if isinstance(e, ValidationError):
+        problems = "; ".join(f"{'.'.join(str(x) for x in err['loc'])}: {err['msg']}" for err in e.errors()[:3])
+        return f"{provider}'s answer did not match the expected room/door format ({problems})."
+    if isinstance(e, httpx.TimeoutException):
+        return f"{provider} did not answer in time. Try again."
+    return redact(f"{type(e).__name__}: {e}", *secrets)
 
 
 class VisionProviderError(Exception):
@@ -65,7 +130,7 @@ class MockVisionProvider(VisionProvider):
                 name="Central Corridor",
                 area_m2=7.2,
                 confidence=0.88,
-                bounds=[0.42, 0.48, 0.60, 0.62],
+                bounds=[0.44, 0.48, 0.60, 0.62],
             ),
             RoomObservation(
                 id="room_master",
@@ -311,7 +376,9 @@ Return ONLY a valid JSON object matching this schema:
 Do NOT invent unreadable dimensions; return null for area_m2 if dimensions are not legible.
 """
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
+        # The key travels in a header: in the URL it would end up in error messages, logs and API responses.
+        url = f"https://generativelanguage.googleapis.com/v1beta/{gemini_model_path(settings.GEMINI_MODEL)}:generateContent"
+        headers = {"x-goog-api-key": settings.GEMINI_API_KEY, "Content-Type": "application/json"}
         payload = {
             "contents": [
                 {
@@ -333,19 +400,29 @@ Do NOT invent unreadable dimensions; return null for area_m2 if dimensions are n
         }
 
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(url, json=payload)
-                response.raise_for_status()
-                data = response.json()
-
-                text = data["candidates"][0]["content"]["parts"][0]["text"]
-                parsed = json.loads(text)
-
-                logger.info(f"Gemini Vision successfully identified {len(parsed.get('rooms', []))} rooms from drawing.")
-                return VisionAnalysisResult(**parsed)
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                response = await post_with_retry(client, url, headers=headers, json=payload)
+            if response.status_code >= 400:
+                raise VisionProviderError(
+                    f"Gemini rejected the request ({describe_http_error(response, settings.GEMINI_API_KEY)}). "
+                    f"Model: {settings.GEMINI_MODEL}. Check /api/ai/check."
+                )
+            data = response.json()
+            candidates = data.get("candidates") or []
+            if not candidates:
+                reason = (data.get("promptFeedback") or {}).get("blockReason", "no answer returned")
+                raise VisionProviderError(f"Gemini returned no answer ({reason}).")
+            text = candidates[0]["content"]["parts"][0]["text"]
+            parsed = json.loads(text)
+            result = VisionAnalysisResult(**parsed)
+            logger.info(f"Gemini Vision identified {len(result.rooms)} rooms from the drawing.")
+            return result
+        except VisionProviderError:
+            raise
         except Exception as e:
-            logger.error(f"Gemini API request failed: {e}", exc_info=True)
-            raise VisionProviderError(f"Gemini vision analysis failed: {e}") from e
+            message = _format_error("Gemini", e, settings.GEMINI_API_KEY)
+            logger.error(f"Gemini request failed: {message}")
+            raise VisionProviderError(f"Gemini vision analysis failed: {message}") from None
 
 
 class OpenAIVisionProvider(VisionProvider):
@@ -425,16 +502,23 @@ Output JSON only matching the schema with rooms, architectural_features, observa
         }
 
         try:
-            async with httpx.AsyncClient(timeout=45.0) as client:
-                response = await client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
-                data = response.json()
-                content = data["choices"][0]["message"]["content"]
-                parsed = json.loads(content)
-                return VisionAnalysisResult(**parsed)
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                response = await post_with_retry(client, url, headers=headers, json=payload)
+            if response.status_code >= 400:
+                raise VisionProviderError(
+                    f"OpenAI rejected the request ({describe_http_error(response, settings.OPENAI_API_KEY)}). "
+                    f"Model: {settings.OPENAI_MODEL}. Check /api/ai/check."
+                )
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+            parsed = json.loads(content)
+            return VisionAnalysisResult(**parsed)
+        except VisionProviderError:
+            raise
         except Exception as e:
-            logger.error(f"OpenAI API request failed: {e}", exc_info=True)
-            raise VisionProviderError(f"OpenAI vision analysis failed: {e}") from e
+            message = _format_error("OpenAI", e, settings.OPENAI_API_KEY)
+            logger.error(f"OpenAI request failed: {message}")
+            raise VisionProviderError(f"OpenAI vision analysis failed: {message}") from None
 
 
 class VisionService:

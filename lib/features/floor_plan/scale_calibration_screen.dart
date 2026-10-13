@@ -59,7 +59,7 @@ class _ScaleCalibrationScreenState extends State<ScaleCalibrationScreen> {
   @override
   void initState() {
     super.initState();
-    final stream = NetworkImage(_imageUrl).resolve(const ImageConfiguration());
+    final stream = NetworkImage(_imageUrl, headers: ApiEndpoints.authHeaders).resolve(const ImageConfiguration());
     late final ImageStreamListener listener;
     listener = ImageStreamListener(
       (info, _) {
@@ -297,7 +297,7 @@ class _ScaleCalibrationScreenState extends State<ScaleCalibrationScreen> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      Image.network(_imageUrl, fit: BoxFit.fill),
+                      Image.network(_imageUrl, headers: ApiEndpoints.authHeaders, fit: BoxFit.fill),
                       CustomPaint(
                         painter: _ReferencePainter(_pointA, _pointB),
                       ),

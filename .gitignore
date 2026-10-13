@@ -63,3 +63,11 @@ backend/voltplan.db
 .env
 backend/.env
 *.env.local
+
+# Real client plans used for evaluation (never commit)
+backend/eval_plans/*.png
+backend/eval_plans/*.jpg
+backend/eval_plans/*.jpeg
+backend/eval_plans/*.pdf
+backend/eval_plans/*.reference.json
+backend/eval_report.*

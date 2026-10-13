@@ -16,6 +16,11 @@ class PlanDrawingViewer extends StatefulWidget {
   final List<WiringArc>? wiringArcs;
   final void Function(ElectricalPoint point)? onPointTap;
   final void Function(ElectricalPoint point, double newX, double newY)? onPointPanUpdate;
+  final void Function(ElectricalPoint point)? onPointPanEnd;
+
+  /// Fires for every tap with the tap position as plan ratios (0-1) and the
+  /// point under the finger, if any. When set it replaces [onPointTap].
+  final void Function(double xRatio, double yRatio, ElectricalPoint? hit)? onPlanTap;
 
   const PlanDrawingViewer({
     super.key,
@@ -28,6 +33,8 @@ class PlanDrawingViewer extends StatefulWidget {
     this.wiringArcs,
     this.onPointTap,
     this.onPointPanUpdate,
+    this.onPointPanEnd,
+    this.onPlanTap,
   });
 
   @override
@@ -73,7 +80,7 @@ class _PlanDrawingViewerState extends State<PlanDrawingViewer> {
     } else if (widget.project.floorPlanName != null &&
         widget.project.id.isNotEmpty) {
       final url = ApiEndpoints.projectPlanFile(widget.project.id);
-      _imageProvider = NetworkImage(url);
+      _imageProvider = NetworkImage(url, headers: ApiEndpoints.authHeaders);
       _hasImage = true;
       _hasError = false;
       _resolveAspectRatio();
@@ -117,8 +124,11 @@ class _PlanDrawingViewerState extends State<PlanDrawingViewer> {
     stream.addListener(listener);
   }
 
+  bool get _acceptsTaps => widget.onPointTap != null || widget.onPlanTap != null;
+
   void _handlePointTap(TapUpDetails details, Size size) {
-    if (widget.points.isEmpty || widget.onPointTap == null) return;
+    if (!_acceptsTaps) return;
+    if (widget.onPlanTap == null && widget.points.isEmpty) return;
 
     final tapOffset = details.localPosition;
     ElectricalPoint? hitPoint;
@@ -134,6 +144,15 @@ class _PlanDrawingViewerState extends State<PlanDrawingViewer> {
         minDistance = dist;
         hitPoint = pt;
       }
+    }
+
+    if (widget.onPlanTap != null) {
+      widget.onPlanTap!(
+        (tapOffset.dx / size.width).clamp(0.0, 1.0),
+        (tapOffset.dy / size.height).clamp(0.0, 1.0),
+        hitPoint,
+      );
+      return;
     }
 
     if (hitPoint != null) {
@@ -161,7 +180,7 @@ class _PlanDrawingViewerState extends State<PlanDrawingViewer> {
 
             return GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onTapUp: widget.onPointTap != null
+              onTapUp: _acceptsTaps
                   ? (details) => _handlePointTap(details, canvasSize)
                   : null,
               child: Stack(
@@ -254,6 +273,7 @@ class _PlanDrawingViewerState extends State<PlanDrawingViewer> {
           final newY = ((curPy + details.delta.dy) / canvasSize.height).clamp(0.015, 0.985);
           widget.onPointPanUpdate!(pt, newX, newY);
         },
+        onPanEnd: (_) => widget.onPointPanEnd?.call(pt),
         child: Container(
           decoration: BoxDecoration(
             shape: BoxShape.circle,
@@ -285,7 +305,7 @@ class _PlanDrawingViewerState extends State<PlanDrawingViewer> {
         final canvasSize = constraints.biggest;
         return GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onTapUp: widget.onPointTap != null
+          onTapUp: _acceptsTaps
               ? (details) => _handlePointTap(details, canvasSize)
               : null,
           child: Stack(

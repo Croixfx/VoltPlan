@@ -95,6 +95,9 @@ class ElectricalPoint {
   final String? clearanceEnvelopeApplied;
   final String placementStatus; // 'proposed', 'needs_confirmation', 'unresolved'
   final String? reasoning;
+  // Manual editing: true for user-placed or user-moved points
+  final bool isManual;
+  final String? manualOrigin; // 'added' | 'moved'
 
   const ElectricalPoint({
     required this.id,
@@ -125,6 +128,8 @@ class ElectricalPoint {
     this.clearanceEnvelopeApplied,
     this.placementStatus = 'proposed',
     this.reasoning,
+    this.isManual = false,
+    this.manualOrigin,
   });
 
   factory ElectricalPoint.fromJson(Map<String, dynamic> json) {
@@ -187,6 +192,8 @@ class ElectricalPoint {
       clearanceEnvelopeApplied: json['clearance_envelope_applied'] as String?,
       placementStatus: json['placement_status'] as String? ?? 'proposed',
       reasoning: json['reasoning'] as String?,
+      isManual: json['is_manual'] as bool? ?? false,
+      manualOrigin: json['manual_origin'] as String?,
     );
   }
 
@@ -219,6 +226,8 @@ class ElectricalPoint {
     String? clearanceEnvelopeApplied,
     String? placementStatus,
     String? reasoning,
+    bool? isManual,
+    String? manualOrigin,
   }) {
     return ElectricalPoint(
       id: id ?? this.id,
@@ -249,6 +258,8 @@ class ElectricalPoint {
       clearanceEnvelopeApplied: clearanceEnvelopeApplied ?? this.clearanceEnvelopeApplied,
       placementStatus: placementStatus ?? this.placementStatus,
       reasoning: reasoning ?? this.reasoning,
+      isManual: isManual ?? this.isManual,
+      manualOrigin: manualOrigin ?? this.manualOrigin,
     );
   }
 
@@ -281,5 +292,7 @@ class ElectricalPoint {
         'clearance_envelope_applied': clearanceEnvelopeApplied,
         'placement_status': placementStatus,
         'reasoning': reasoning,
+        'is_manual': isManual,
+        'manual_origin': manualOrigin,
       };
 }

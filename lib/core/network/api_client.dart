@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'api_endpoints.dart';
 import 'api_exceptions.dart';
 
 class ApiClient {
@@ -11,6 +12,7 @@ class ApiClient {
   Map<String, String> get _defaultHeaders => {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        ...ApiEndpoints.authHeaders,
       };
 
   Future<dynamic> get(String url, {Map<String, String>? headers}) async {
@@ -112,6 +114,7 @@ class ApiClient {
   }) async {
     try {
       final request = http.MultipartRequest('POST', Uri.parse(url));
+      request.headers.addAll(ApiEndpoints.authHeaders);
 
       if (fields != null) {
         request.fields.addAll(fields);
@@ -152,7 +155,11 @@ class ApiClient {
     try {
       final errorJson = jsonDecode(response.body);
       if (errorJson is Map<String, dynamic> && errorJson.containsKey('detail')) {
-        errorMessage = errorJson['detail'].toString();
+        final detail = errorJson['detail'];
+        // Structured errors (e.g. geometry checks) carry a human-readable `message`.
+        errorMessage = detail is Map && detail['message'] != null
+            ? detail['message'].toString()
+            : detail.toString();
         details = errorJson;
       }
     } catch (_) {
