@@ -117,9 +117,12 @@ To add equipment:
 
 ---
 
-## Geometry checks
+## Geometry checks and real-plan evaluation
 
 Equipment is only generated from geometry that passes `app/services/geometry_validator.py`: rooms must have a closed,
 non-degenerate boundary inside the plan, must not overlap (more than 3 % of the smaller room), doors must sit on a wall of
 an existing room, and sizes must be plausible (checked in metres once the scale is calibrated). Errors stop generation and
 are returned to the user; warnings are shown but do not block. Nothing is repaired automatically.
+
+To measure how well VoltPlan reads real plans against an electrician's design, see `eval_plans/README.md`
+(`python -m tools.evaluate_plans`).
