@@ -108,3 +108,12 @@ To add equipment:
    (`app/engineering_rules/rs_iec_60364.py`) using `catalog_point(type_id, coord, notes)`.
 3. Add the type to `ElectricalPointType` in `lib/shared/models/electrical_point.dart` and a symbol in
    `floor_plan_painter.dart`.
+
+---
+
+## Geometry checks
+
+Equipment is only generated from geometry that passes `app/services/geometry_validator.py`: rooms must have a closed,
+non-degenerate boundary inside the plan, must not overlap (more than 3 % of the smaller room), doors must sit on a wall of
+an existing room, and sizes must be plausible (checked in metres once the scale is calibrated). Errors stop generation and
+are returned to the user; warnings are shown but do not block. Nothing is repaired automatically.

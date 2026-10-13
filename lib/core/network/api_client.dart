@@ -152,7 +152,11 @@ class ApiClient {
     try {
       final errorJson = jsonDecode(response.body);
       if (errorJson is Map<String, dynamic> && errorJson.containsKey('detail')) {
-        errorMessage = errorJson['detail'].toString();
+        final detail = errorJson['detail'];
+        // Structured errors (e.g. geometry checks) carry a human-readable `message`.
+        errorMessage = detail is Map && detail['message'] != null
+            ? detail['message'].toString()
+            : detail.toString();
         details = errorJson;
       }
     } catch (_) {

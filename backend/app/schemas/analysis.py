@@ -6,6 +6,7 @@ from app.schemas.floor_plan import RoomObservation, ArchitecturalFeature
 from app.schemas.electrical import ElectricalPoint, Circuit, WiringArc
 from app.schemas.boq import BOQItem, CostEstimateResponse
 from app.schemas.canonical_geometry import CanonicalFloorPlan
+from app.services.geometry_validator import GeometryIssue
 
 
 class AnalysisStatusResponse(BaseModel):
@@ -32,6 +33,11 @@ class AnalysisResultResponse(BaseModel):
 
     # Phase 1 Canonical Building Geometry Model
     canonical_geometry: Optional[CanonicalFloorPlan] = None
+
+    # Room / door review state
+    geometry_reviewed: bool = False
+    geometry_needs_regeneration: bool = False
+    geometry_issues: List[GeometryIssue] = Field(default_factory=list)
 
     electrical_points: List[ElectricalPoint] = Field(default_factory=list)
     circuits: List[Circuit] = Field(default_factory=list)

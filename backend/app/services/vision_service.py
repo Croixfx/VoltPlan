@@ -65,7 +65,7 @@ class MockVisionProvider(VisionProvider):
                 name="Central Corridor",
                 area_m2=7.2,
                 confidence=0.88,
-                bounds=[0.42, 0.48, 0.60, 0.62],
+                bounds=[0.44, 0.48, 0.60, 0.62],
             ),
             RoomObservation(
                 id="room_master",

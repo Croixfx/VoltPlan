@@ -20,9 +20,12 @@ class RoomObservation(BaseModel):
         "unscaled_estimate",
         description="Status of room area: verified, approximate_calibrated, unscaled_estimate, or unresolved",
     )
+    is_manual: bool = Field(False, description="True if a user created or corrected this room")
 
 
 class ArchitecturalFeature(BaseModel):
+    id: Optional[str] = Field(None, description="Stable identifier, assigned when the feature is stored")
+    room_id: Optional[str] = Field(None, description="Id of the associated room (preferred over the room name)")
     type: str = Field(..., description="Feature type: door, window, wall, entrance, balcony")
     room: str = Field(..., description="Associated room name")
     confidence: float = Field(..., ge=0.0, le=1.0)
@@ -34,6 +37,7 @@ class ArchitecturalFeature(BaseModel):
     swing_direction: Optional[str] = Field(None, description="Door swing direction: into_room or out_of_room")
     bounds: Optional[List[float]] = Field(None, description="Normalized bounding box [x1, y1, x2, y2]")
     coordinates: Optional[Dict[str, Any]] = None
+    is_manual: bool = Field(False, description="True if a user created or corrected this feature")
 
 
 class VisionAnalysisResult(BaseModel):

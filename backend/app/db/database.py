@@ -35,7 +35,12 @@ def init_db():
 
     # Lightweight additive column migrations for existing SQLite databases
     additions = {
-        "analyses": {"canonical_geometry_data": "JSON"},
+        "analyses": {
+            "canonical_geometry_data": "JSON",
+            "geometry_reviewed": "BOOLEAN DEFAULT 0",
+            "geometry_dirty": "BOOLEAN DEFAULT 0",
+            "geometry_issues_data": "JSON",
+        },
         "projects": {"scale_mm_per_pixel": "FLOAT", "scale_calibration": "JSON"},
     }
     try:

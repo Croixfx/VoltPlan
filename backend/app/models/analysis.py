@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, Text, JSON, ForeignKey
+from sqlalchemy import Boolean, Column, String, DateTime, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 
@@ -22,6 +22,11 @@ class Analysis(Base):
 
     # Phase 1 Canonical Building Geometry Model
     canonical_geometry_data = Column(JSON, nullable=True, default=dict)
+
+    # Manual room / door review
+    geometry_reviewed = Column(Boolean, nullable=False, default=False)  # a user has corrected rooms/doors
+    geometry_dirty = Column(Boolean, nullable=False, default=False)     # corrected since equipment was last generated
+    geometry_issues_data = Column(JSON, nullable=True, default=list)
 
     # Deterministic Engineering Results
     electrical_points_data = Column(JSON, nullable=False, default=list)
