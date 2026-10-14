@@ -3,11 +3,16 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'api_endpoints.dart';
 import 'api_exceptions.dart';
+import 'server_waker.dart';
 
 class ApiClient {
   final http.Client _client;
+  final ServerWaker _waker;
 
-  ApiClient({http.Client? client}) : _client = client ?? http.Client();
+  /// [waker] defaults to the shared one, which wakes a sleeping free-tier server before the first request.
+  ApiClient({http.Client? client, ServerWaker? waker})
+      : _client = client ?? http.Client(),
+        _waker = waker ?? ServerWaker.shared;
 
   Map<String, String> get _defaultHeaders => {
         'Content-Type': 'application/json',
@@ -15,91 +20,52 @@ class ApiClient {
         ...ApiEndpoints.authHeaders,
       };
 
-  Future<dynamic> get(String url, {Map<String, String>? headers}) async {
-    try {
-      final response = await _client
-          .get(
-            Uri.parse(url),
-            headers: {..._defaultHeaders, ...(headers ?? {})},
-          )
-          .timeout(const Duration(seconds: 30));
+  /// Plain reads are safe to repeat, so one that fails at the network level is retried once after the
+  /// server has been woken. Writes are never repeated.
+  Future<dynamic> get(String url, {Map<String, String>? headers}) =>
+      _send('GET', url, headers: headers, timeout: const Duration(seconds: 30), retryAfterWake: true);
 
-      return _processResponse(response);
-    } catch (e) {
-      _handleError(e);
-    }
-  }
+  /// 100 s: analysing a plan with a real AI model (including its own retries) can take longer than 45 s.
+  Future<dynamic> post(String url, {dynamic body, Map<String, String>? headers}) =>
+      _send('POST', url, body: body, headers: headers, timeout: const Duration(seconds: 100));
 
-  Future<dynamic> post(
+  Future<dynamic> put(String url, {dynamic body, Map<String, String>? headers}) =>
+      _send('PUT', url, body: body, headers: headers, timeout: const Duration(seconds: 30));
+
+  Future<dynamic> patch(String url, {dynamic body, Map<String, String>? headers}) =>
+      _send('PATCH', url, body: body, headers: headers, timeout: const Duration(seconds: 30));
+
+  Future<dynamic> delete(String url, {Map<String, String>? headers}) =>
+      _send('DELETE', url, headers: headers, timeout: const Duration(seconds: 30));
+
+  Future<dynamic> _send(
+    String method,
     String url, {
     dynamic body,
     Map<String, String>? headers,
+    required Duration timeout,
+    bool retryAfterWake = false,
   }) async {
-    try {
-      final response = await _client
-          .post(
-            Uri.parse(url),
-            headers: {..._defaultHeaders, ...(headers ?? {})},
-            body: body != null ? jsonEncode(body) : null,
-          )
-          .timeout(const Duration(seconds: 45));
+    final uri = Uri.parse(url);
 
-      return _processResponse(response);
-    } catch (e) {
-      _handleError(e);
+    Future<http.Response> attempt() async {
+      final request = http.Request(method, uri)..headers.addAll({..._defaultHeaders, ...(headers ?? {})});
+      if (body != null) request.body = jsonEncode(body);
+      final streamed = await _client.send(request).timeout(timeout);
+      return http.Response.fromStream(streamed);
     }
-  }
 
-  Future<dynamic> put(
-    String url, {
-    dynamic body,
-    Map<String, String>? headers,
-  }) async {
     try {
-      final response = await _client
-          .put(
-            Uri.parse(url),
-            headers: {..._defaultHeaders, ...(headers ?? {})},
-            body: body != null ? jsonEncode(body) : null,
-          )
-          .timeout(const Duration(seconds: 30));
-
-      return _processResponse(response);
-    } catch (e) {
-      _handleError(e);
-    }
-  }
-
-  Future<dynamic> patch(
-    String url, {
-    dynamic body,
-    Map<String, String>? headers,
-  }) async {
-    try {
-      final response = await _client
-          .patch(
-            Uri.parse(url),
-            headers: {..._defaultHeaders, ...(headers ?? {})},
-            body: body != null ? jsonEncode(body) : null,
-          )
-          .timeout(const Duration(seconds: 30));
-
-      return _processResponse(response);
-    } catch (e) {
-      _handleError(e);
-    }
-  }
-
-  Future<dynamic> delete(String url, {Map<String, String>? headers}) async {
-    try {
-      final response = await _client
-          .delete(
-            Uri.parse(url),
-            headers: {..._defaultHeaders, ...(headers ?? {})},
-          )
-          .timeout(const Duration(seconds: 30));
-
-      return _processResponse(response);
+      await _waker.ensureAwake(_client, uri);
+      try {
+        return _finish(await attempt());
+      } catch (e) {
+        if (e is ApiException || !retryAfterWake || ServerWaker.isLocalHost(uri)) rethrow;
+        // The server did not answer in time: it may have gone back to sleep. Wake it, then try once more.
+        _waker.markStale();
+        await _waker.ensureAwake(_client, uri);
+        return _finish(await attempt());
+      }
     } catch (e) {
       _handleError(e);
     }
@@ -113,7 +79,10 @@ class ApiClient {
     Map<String, String>? fields,
   }) async {
     try {
-      final request = http.MultipartRequest('POST', Uri.parse(url));
+      final uri = Uri.parse(url);
+      await _waker.ensureAwake(_client, uri);
+
+      final request = http.MultipartRequest('POST', uri);
       request.headers.addAll(ApiEndpoints.authHeaders);
 
       if (fields != null) {
@@ -128,13 +97,19 @@ class ApiClient {
       request.files.add(multipartFile);
 
       final streamedResponse =
-          await request.send().timeout(const Duration(seconds: 60));
+          await request.send().timeout(const Duration(seconds: 90));
       final response = await http.Response.fromStream(streamedResponse);
 
-      return _processResponse(response);
+      return _finish(response);
     } catch (e) {
       _handleError(e);
     }
+  }
+
+  /// Any HTTP answer, even an error, proves the server is awake.
+  dynamic _finish(http.Response response) {
+    _waker.markAwake();
+    return _processResponse(response);
   }
 
   dynamic _processResponse(http.Response response) {

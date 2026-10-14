@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:voltplan/app/theme.dart';
 import 'package:voltplan/core/network/api_client.dart';
 import 'package:voltplan/core/network/api_exceptions.dart';
+import 'package:voltplan/core/network/server_waker.dart';
 import 'package:voltplan/core/widgets/app_button.dart';
 import 'package:voltplan/features/floor_plan/data/geometry_repository.dart';
 import 'package:voltplan/features/floor_plan/geometry_editor_screen.dart';
@@ -202,6 +203,7 @@ void main() {
 
   test('structured backend errors surface their human-readable message', () async {
     final client = ApiClient(
+      waker: ServerWaker.disabled(),
       client: MockClient((_) async => http.Response(
           jsonEncode({'detail': {'message': 'Geometry check failed with 1 error(s): overlap', 'issues': []}}), 422)),
     );

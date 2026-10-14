@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_constants.dart';
+import '../core/widgets/server_wake_banner.dart';
 import '../features/navigation/main_scaffold.dart';
 import '../shared/state/app_state.dart';
 import 'theme.dart';
@@ -22,6 +23,7 @@ class VoltPlanApp extends StatelessWidget {
           themeMode: state.themeMode,
           themeAnimationDuration: const Duration(milliseconds: 350),
           themeAnimationCurve: Curves.easeInOutCubic,
+          builder: (context, child) => ServerWakeBanner(child: child ?? const SizedBox.shrink()),
           home: MainScaffold(state: state),
         );
       },

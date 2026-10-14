@@ -6,12 +6,14 @@ import 'package:http/testing.dart';
 import 'package:voltplan/core/network/api_client.dart';
 import 'package:voltplan/core/network/api_endpoints.dart';
 import 'package:voltplan/core/network/api_exceptions.dart';
+import 'package:voltplan/core/network/server_waker.dart';
 
 void main() {
   final originalKey = ApiEndpoints.apiKey;
   tearDown(() => ApiEndpoints.apiKey = originalKey);
 
   ApiClient clientRecording(List<http.Request> seen, {int status = 200}) => ApiClient(
+        waker: ServerWaker.disabled(),
         client: MockClient((req) async {
           seen.add(req);
           return http.Response(jsonEncode(status == 200 ? {'ok': true} : {'detail': 'Invalid or missing API key.'}), status);

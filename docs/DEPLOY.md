@@ -40,7 +40,10 @@ to mock data); the Blueprint screen asks for it (`mock`, `gemini` or `openai`) a
 ### Free-tier behaviour to expect
 
 * **Cold starts.** The free web service sleeps after about 15 minutes idle; the first request afterwards can take
-  around a minute. The app times out after 30-60 s, so just retry once.
+  around a minute. The app handles this itself: before the first request (and after 10 idle minutes) it polls
+  `/health` until the server answers, shows a "Waking the server up…" notice, then sends the real request. A plain
+  read that still times out is retried once after another wake-up. Writes (create, upload, analyse, edit) are never
+  repeated automatically, so nothing is created twice.
 * **Plans disappear.** Uploaded floor plans are kept on the container's temporary disk and are deleted when the
   service restarts, redeploys or sleeps. The project data stays (it is in Postgres), but the plan image does not:
   upload the plan again before analysing or editing rooms.
