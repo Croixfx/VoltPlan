@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -13,6 +14,11 @@ import 'package:voltplan/features/floor_plan/scale_calibration_screen.dart';
 import 'package:voltplan/features/floor_plan/upload_plan_screen.dart';
 import 'package:voltplan/features/analysis/ai_analysis_screen.dart';
 import 'package:voltplan/features/projects/create_project_screen.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:voltplan/core/network/api_client.dart';
+import 'package:voltplan/core/network/server_waker.dart';
+import 'package:voltplan/features/projects/data/project_repository.dart';
 import 'package:voltplan/shared/models/boq_item.dart';
 import 'package:voltplan/shared/models/project.dart';
 import 'package:voltplan/shared/state/app_state.dart';
@@ -103,9 +109,45 @@ void main() {
       expect(find.text('Electrical Engine'), findsOneWidget);
       expect(find.text('New Project'), findsOneWidget);
       expect(find.text('Recent Projects'), findsOneWidget);
-      // Nothing pre-filled: an empty dashboard says so instead of showing sample projects
-      expect(find.text('No projects yet'), findsOneWidget);
+      // No server in tests: the dashboard must say so, not claim there are no projects
+      expect(find.text("Can't reach the server"), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
       expect(find.text('Modern Family House'), findsNothing);
+    });
+
+    testWidgets('Dashboard loads the projects the server holds (health answers "ok")', (tester) async {
+      final server = MockClient((req) async {
+        if (req.url.path.endsWith('/health')) return http.Response(jsonEncode({'status': 'ok'}), 200);
+        return http.Response(
+          jsonEncode([
+            {'id': 'p1', 'name': 'Kicukiro Villa', 'client': 'Client', 'building_type': 'Residential',
+             'location': 'Kigali', 'standard': 'RS IEC 60364', 'status': 'created'},
+          ]),
+          200,
+        );
+      });
+      final state = AppState(
+        projectRepository: ProjectRepository(client: ApiClient(client: server, waker: ServerWaker.disabled())),
+      );
+      await tester.pumpWidget(VoltPlanApp(state: state));
+      await tester.pumpAndSettle();
+
+      expect(state.isBackendConnected, isTrue);
+      expect(find.text('Kicukiro Villa'), findsOneWidget);
+      expect(find.text("Can't reach the server"), findsNothing);
+    });
+
+    testWidgets('Dashboard says so when the server holds no projects', (tester) async {
+      final server = MockClient((req) async => req.url.path.endsWith('/health')
+          ? http.Response(jsonEncode({'status': 'ok'}), 200)
+          : http.Response('[]', 200));
+      final state = AppState(
+        projectRepository: ProjectRepository(client: ApiClient(client: server, waker: ServerWaker.disabled())),
+      );
+      await tester.pumpWidget(VoltPlanApp(state: state));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No projects yet'), findsOneWidget);
     });
 
     testWidgets('Dashboard lists exactly the projects the user created', (tester) async {

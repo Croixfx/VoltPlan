@@ -148,7 +148,21 @@ class DashboardScreen extends StatelessWidget {
                 const SizedBox(height: 8),
 
                 // Recent Projects List
-                if (state.projects.isEmpty)
+                if (state.projects.isEmpty && !state.backendChecked)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 48),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (state.projects.isEmpty && !state.isBackendConnected)
+                  EmptyState(
+                    icon: Icons.cloud_off,
+                    title: "Can't reach the server",
+                    message:
+                        'Your projects are stored on the server, so none can be shown right now. Check your internet connection and try again.',
+                    actionLabel: 'Retry',
+                    onAction: state.checkBackendConnection,
+                  )
+                else if (state.projects.isEmpty)
                   EmptyState(
                     icon: Icons.folder_open,
                     title: 'No projects yet',

@@ -26,14 +26,16 @@ class AppState extends ChangeNotifier {
     PointRepository? pointRepository,
     GeometryRepository? geometryRepository,
     AnalysisRepository? analysisRepository,
-  })  : _pointRepo = pointRepository ?? PointRepository(),
+    ProjectRepository? projectRepository,
+  })  : _projectRepo = projectRepository ?? ProjectRepository(),
+        _pointRepo = pointRepository ?? PointRepository(),
         _geometryRepo = geometryRepository ?? GeometryRepository(),
         _analysisRepo = analysisRepository ?? AnalysisRepository() {
     _init();
   }
 
   // Repositories
-  final ProjectRepository _projectRepo = ProjectRepository();
+  final ProjectRepository _projectRepo;
   final AnalysisRepository _analysisRepo;
   final PointRepository _pointRepo;
   final GeometryRepository _geometryRepo;
@@ -107,6 +109,10 @@ class AppState extends ChangeNotifier {
   String get engineeringDisclaimer => _engineeringDisclaimer;
 
   bool _isBackendConnected = false;
+
+  /// False until the first connection attempt has finished (so the home page does not flash "no projects").
+  bool _backendChecked = false;
+  bool get backendChecked => _backendChecked;
   bool get isBackendConnected => _isBackendConnected;
 
   // Profile / Settings
@@ -135,6 +141,7 @@ class AppState extends ChangeNotifier {
     try {
       final healthy = await _projectRepo.checkHealth();
       _isBackendConnected = healthy;
+      _backendChecked = true;
       notifyListeners();
       if (healthy) {
         await fetchBackendProjects();
@@ -142,6 +149,7 @@ class AppState extends ChangeNotifier {
       return healthy;
     } catch (_) {
       _isBackendConnected = false;
+      _backendChecked = true;
       notifyListeners();
       return false;
     }

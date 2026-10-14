@@ -11,7 +11,8 @@ class ProjectRepository {
   Future<bool> checkHealth() async {
     try {
       final res = await _client.get(ApiEndpoints.health);
-      return res != null && res['status'] == 'healthy';
+      // The backend answers {"status": "ok"}; older builds said "healthy".
+      return res is Map && (res['status'] == 'ok' || res['status'] == 'healthy');
     } catch (_) {
       return false;
     }
