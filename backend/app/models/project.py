@@ -34,6 +34,7 @@ class Project(Base):
     )
 
     analysis = relationship("Analysis", back_populates="project", uselist=False, cascade="all, delete-orphan")
+    plan_file = relationship("PlanFile", uselist=False, cascade="all, delete-orphan")
 
     @property
     def is_scale_calibrated(self) -> bool:

@@ -7,6 +7,7 @@ from PIL import Image
 
 from app.models.project import Project
 from app.schemas.project import ScaleCalibrationRequest
+from app.services.plan_storage import ensure_plan_on_disk
 
 # Reference segments shorter than this (in pixels) give an unreliable scale.
 MIN_REFERENCE_PIXELS = 20.0
@@ -17,6 +18,7 @@ MAX_MM_PER_PIXEL = 200.0
 
 def analysis_image_path(project: Project) -> str:
     """The image the vision/geometry pipeline works on (display PNG when available)."""
+    ensure_plan_on_disk(project)
     project_dir = os.path.dirname(project.floor_plan_path)
     display = os.path.join(project_dir, "display_plan.png")
     return display if os.path.exists(display) else project.floor_plan_path
@@ -31,7 +33,7 @@ class ScaleService:
     @staticmethod
     def calibrate(project: Project, req: ScaleCalibrationRequest) -> dict:
         """Derive mm-per-pixel from two points and the real distance between them."""
-        if not project.floor_plan_path or not os.path.exists(project.floor_plan_path):
+        if not ensure_plan_on_disk(project):
             raise HTTPException(status_code=400, detail="Upload a floor plan before calibrating its scale.")
 
         width, height = image_size(analysis_image_path(project))

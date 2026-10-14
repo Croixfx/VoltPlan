@@ -8,6 +8,7 @@ from app.models.analysis import Analysis
 from app.models.project import Project
 from app.schemas.project import ProjectResponse
 from app.services.document_service import DocumentService
+from app.services.plan_storage import ensure_plan_on_disk, store_plan
 from app.core.logging import logger
 
 router = APIRouter(prefix="/projects", tags=["Uploads"])
@@ -31,6 +32,7 @@ async def upload_floor_plan(
     project.floor_plan_content_type = save_result["content_type"]
     project.floor_plan_size = save_result["size"]
     project.status = "uploaded"
+    store_plan(db, project)  # the disk is wiped on restart; this copy survives
     # A new drawing invalidates any previous scale calibration ...
     project.scale_mm_per_pixel = None
     project.scale_calibration = None
@@ -55,7 +57,7 @@ def get_floor_plan_file(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found.")
 
-    if not project.floor_plan_path or not os.path.exists(project.floor_plan_path):
+    if not ensure_plan_on_disk(project, db):
         raise HTTPException(status_code=404, detail="No floor plan file found for this project.")
 
     project_dir = os.path.dirname(project.floor_plan_path)

@@ -17,6 +17,7 @@ from app.services.boq_engine import BoqEngine
 from app.services.cost_service import CostService
 from app.services.geometry_snapper import door_snapped_issues, snap_doors_to_walls
 from app.services.geometry_validator import GeometryIssue, GeometryValidator, has_errors, summarize
+from app.services.plan_storage import ensure_plan_on_disk
 from app.services.point_edit_service import PointEditService
 
 
@@ -25,6 +26,7 @@ GEOMETRY_CORRECTED_CODE = "geometry_corrected"
 
 def analysis_image_path_for(project: Project) -> str:
     """The image the pipeline works on (display PNG when available)."""
+    ensure_plan_on_disk(project)
     project_dir = os.path.dirname(project.floor_plan_path)
     display = os.path.join(project_dir, "display_plan.png")
     return display if os.path.exists(display) else project.floor_plan_path
@@ -114,7 +116,7 @@ class PlanAnalysisService:
         if not project:
             raise HTTPException(status_code=404, detail="Project not found.")
 
-        if not project.floor_plan_path or not os.path.exists(project.floor_plan_path):
+        if not ensure_plan_on_disk(project, db):
             raise HTTPException(
                 status_code=400,
                 detail="No architectural floor plan uploaded for this project. Upload a plan first.",
@@ -229,7 +231,7 @@ class PlanAnalysisService:
         analysis = db.query(Analysis).filter(Analysis.project_id == project_id).first()
         if not analysis or not analysis.rooms_data:
             raise HTTPException(status_code=409, detail="Run the analysis first so rooms and doors are detected.")
-        if not project.floor_plan_path or not os.path.exists(project.floor_plan_path):
+        if not ensure_plan_on_disk(project, db):
             raise HTTPException(status_code=400, detail="The floor plan file for this project is missing.")
 
         rooms = [RoomObservation(**r) for r in analysis.rooms_data]

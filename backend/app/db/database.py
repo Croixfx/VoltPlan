@@ -41,6 +41,7 @@ def init_db():
     import app.models.project  # noqa: F401
     import app.models.analysis  # noqa: F401
     import app.models.material  # noqa: F401
+    import app.models.plan_file  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
 

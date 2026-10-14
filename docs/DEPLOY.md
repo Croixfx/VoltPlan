@@ -44,9 +44,9 @@ to mock data); the Blueprint screen asks for it (`mock`, `gemini` or `openai`) a
   `/health` until the server answers, shows a "Waking the server up…" notice, then sends the real request. A plain
   read that still times out is retried once after another wake-up. Writes (create, upload, analyse, edit) are never
   repeated automatically, so nothing is created twice.
-* **Plans disappear.** Uploaded floor plans are kept on the container's temporary disk and are deleted when the
-  service restarts, redeploys or sleeps. The project data stays (it is in Postgres), but the plan image does not:
-  upload the plan again before analysing or editing rooms.
+* **Plans survive restarts.** The disk is wiped whenever the service restarts, redeploys or sleeps, so each uploaded
+  plan is also stored in Postgres (`plan_files`) and put back on disk the next time it is needed. Because the plans
+  now live in the free database, they count against its storage limit and disappear with it when it expires.
 * **The database expires** after a limited time (30 days at the time of writing) and is deleted without a backup.
 
 ### Moving to real use
