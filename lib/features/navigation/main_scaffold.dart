@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/widgets/empty_state.dart';
 import '../../shared/state/app_state.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../projects/projects_screen.dart';
@@ -43,10 +44,22 @@ class _MainScaffoldState extends State<MainScaffold> {
         onNavigateToProjects: () => _onTabSelected(1),
       ),
       ProjectsScreen(state: widget.state),
-      BoqScreen(
-        state: widget.state,
-        project: widget.state.selectedProject ?? widget.state.projects.first,
-      ),
+      if (widget.state.selectedProject == null)
+        const Scaffold(
+          body: SafeArea(
+            child: EmptyState(
+              icon: Icons.inventory_2_outlined,
+              title: 'No materials yet',
+              message:
+                  'The bill of quantities appears here once you have created a project and analysed its floor plan.',
+            ),
+          ),
+        )
+      else
+        BoqScreen(
+          state: widget.state,
+          project: widget.state.selectedProject!,
+        ),
       SettingsScreen(state: widget.state),
     ];
 

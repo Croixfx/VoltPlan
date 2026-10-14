@@ -49,10 +49,12 @@ class SettingsScreen extends StatelessWidget {
                             color: AppColors.primaryBlue,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Center(
+                          child: Center(
                             child: Text(
-                              'PM',
-                              style: TextStyle(
+                              state.userName.isEmpty
+                                  ? 'V'
+                                  : state.userName.trim()[0].toUpperCase(),
+                              style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.white,
@@ -66,7 +68,9 @@ class SettingsScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                state.userName,
+                                state.userName.isEmpty
+                                    ? 'VoltPlan user'
+                                    : state.userName,
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
@@ -75,26 +79,18 @@ class SettingsScreen extends StatelessWidget {
                                       : AppColors.textPrimaryLight,
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                state.companyName,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: isDark
-                                      ? AppColors.textSecondaryDark
-                                      : AppColors.textSecondaryLight,
+                              if (state.companyName.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  state.companyName,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: isDark
+                                        ? AppColors.textSecondaryDark
+                                        : AppColors.textSecondaryLight,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Rwanda Energy Regulatory Board (RURA) Certified',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: isDark
-                                      ? AppColors.textMutedDark
-                                      : AppColors.textMutedLight,
-                                ),
-                              ),
+                              ],
                             ],
                           ),
                         ),

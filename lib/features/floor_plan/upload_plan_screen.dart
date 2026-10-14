@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/widgets/app_button.dart';
-import '../../core/widgets/section_header.dart';
 import '../../shared/models/project.dart';
-import '../../shared/mock_data/mock_data.dart';
 import '../../shared/state/app_state.dart';
-import '../analysis/ai_analysis_screen.dart';
 import 'scale_calibration_screen.dart';
 
 class UploadPlanScreen extends StatefulWidget {
@@ -97,30 +94,6 @@ class _UploadPlanScreenState extends State<UploadPlanScreen> {
         _showMessage('Failed to upload floor plan: $error');
         setState(() => _isUploading = false);
       }
-    }
-  }
-
-  void _handleUpload(String fileName) async {
-    if (_isUploading) return;
-
-    setState(() {
-      _selectedFile = fileName;
-      _isUploading = true;
-    });
-
-    await Future.delayed(const Duration(milliseconds: 400));
-
-    widget.state.setProjectFloorPlan(widget.project.id, fileName);
-
-    if (mounted) {
-      setState(() => _isUploading = false);
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              AiAnalysisScreen(state: widget.state, project: widget.project),
-        ),
-      );
     }
   }
 
@@ -257,88 +230,6 @@ class _UploadPlanScreenState extends State<UploadPlanScreen> {
                 ),
               ),
 
-              const SizedBox(height: 28),
-
-              // Recent Floor Plans / Sample Engineering Drawings
-              const SectionHeader(
-                title: 'Sample Engineering Drawings',
-                subtitle:
-                    'Select a pre-configured architectural plan for immediate analysis',
-              ),
-              const SizedBox(height: 8),
-
-              ...MockData.sampleFloorPlans.map((sampleName) {
-                final isSelected = _selectedFile == sampleName;
-                final isPdf = sampleName.endsWith('.pdf');
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Material(
-                    color: isDark
-                        ? AppColors.surfaceDark
-                        : AppColors.surfaceLight,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(
-                        color: isSelected
-                            ? AppColors.primaryBlue
-                            : (isDark
-                                  ? AppColors.borderDark
-                                  : AppColors.borderLight),
-                        width: isSelected ? 1.5 : 1,
-                      ),
-                    ),
-                    child: ListTile(
-                      onTap: _isUploading
-                          ? null
-                          : () => _handleUpload(sampleName),
-                      leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: isPdf
-                              ? Colors.red.withValues(alpha: isDark ? 0.2 : 0.1)
-                              : AppColors.primaryBlue.withValues(
-                                  alpha: isDark ? 0.2 : 0.1,
-                                ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          isPdf ? Icons.picture_as_pdf : Icons.image_outlined,
-                          size: 20,
-                          color: isPdf ? Colors.red : AppColors.primaryBlue,
-                        ),
-                      ),
-                      title: Text(
-                        sampleName,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: isDark
-                              ? AppColors.textPrimaryDark
-                              : AppColors.textPrimaryLight,
-                        ),
-                      ),
-                      subtitle: Text(
-                        'Vector architectural layout • 1.8 MB',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: isDark
-                              ? AppColors.textMutedDark
-                              : AppColors.textMutedLight,
-                        ),
-                      ),
-                      trailing: AppButton(
-                        label: 'Select',
-                        height: 32,
-                        variant: AppButtonVariant.secondary,
-                        onPressed: _isUploading
-                            ? null
-                            : () => _handleUpload(sampleName),
-                      ),
-                    ),
-                  ),
-                );
-              }),
             ],
           ),
         ),

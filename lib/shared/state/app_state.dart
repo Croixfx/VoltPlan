@@ -9,7 +9,6 @@ import '../../features/boq/data/boq_repository.dart';
 import '../../features/electrical/data/point_repository.dart';
 import '../../features/floor_plan/data/geometry_repository.dart';
 import '../../features/projects/data/project_repository.dart';
-import '../mock_data/mock_data.dart';
 import '../models/analysis_result.dart';
 import '../models/architectural_feature.dart';
 import '../models/boq_item.dart';
@@ -111,10 +110,10 @@ class AppState extends ChangeNotifier {
   bool get isBackendConnected => _isBackendConnected;
 
   // Profile / Settings
-  String _userName = 'Eng. Patrick Mugabo';
+  String _userName = '';
   String get userName => _userName;
 
-  String _companyName = 'VoltPlan Engineering Ltd';
+  String _companyName = '';
   String get companyName => _companyName;
 
   String _currentStandard = 'RS IEC 60364';
@@ -127,13 +126,7 @@ class AppState extends ChangeNotifier {
   bool get notificationsEnabled => _notificationsEnabled;
 
   void _init() {
-    _projects = MockData.getProjects();
-    _selectedProject = _projects.first;
-    _rooms = MockData.getRooms();
-    _electricalPoints = MockData.getElectricalPoints();
-    _circuits = MockData.getCircuits();
-    _boqItems = MockData.getBoqItems();
-
+    // Nothing is pre-filled: the app shows only what the user has created or what the server holds.
     // Check backend in background
     checkBackendConnection();
   }
@@ -157,20 +150,16 @@ class AppState extends ChangeNotifier {
   Future<void> fetchBackendProjects() async {
     try {
       final backendProjects = await _projectRepo.getProjects();
-      if (backendProjects.isNotEmpty) {
-        // Merge backend projects, preserving local mock projects if not yet on backend
-        final existingIds = backendProjects.map((p) => p.id).toSet();
-        final localOnly = _projects.where((p) => !existingIds.contains(p.id)).toList();
-        _projects = [...backendProjects, ...localOnly];
-        if (_selectedProject != null) {
-          final updated = _projects.firstWhere(
-            (p) => p.id == _selectedProject!.id,
-            orElse: () => _projects.first,
-          );
-          _selectedProject = updated;
-        }
-        notifyListeners();
+      // The server is the source of truth; keep only projects created offline that have not been synced yet.
+      final existingIds = backendProjects.map((p) => p.id).toSet();
+      final localOnly = _projects.where((p) => !existingIds.contains(p.id)).toList();
+      _projects = [...backendProjects, ...localOnly];
+      if (_selectedProject != null) {
+        final selectedId = _selectedProject!.id;
+        final index = _projects.indexWhere((p) => p.id == selectedId);
+        _selectedProject = index == -1 ? null : _projects[index];
       }
+      notifyListeners();
     } catch (_) {
       // Keep existing
     }
@@ -504,8 +493,10 @@ class AppState extends ChangeNotifier {
             _selectedProject = _projects[idx];
           }
         } catch (e) {
-          // If backend registration fails, fall back to simulation
-          await runAnalysisSimulation(projectId);
+          // Never invent results: report the problem and let the user retry.
+          _analysisErrorMessage = friendlyApiMessage(e.toString());
+          _isAnalyzing = false;
+          notifyListeners();
           return;
         }
       }
@@ -583,63 +574,9 @@ class AppState extends ChangeNotifier {
         _analysisErrorMessage = friendlyApiMessage(e.toString());
       }
 
-      // If network unreachable, run simulation as graceful fallback
-      if (_analysisErrorMessage!.contains('Network connection') ||
-          _analysisErrorMessage!.contains('Failed to connect') ||
-          _analysisErrorMessage!.contains('SocketException')) {
-        await runAnalysisSimulation(projectId);
-      } else {
-        _isAnalyzing = false;
-        notifyListeners();
-      }
+      _isAnalyzing = false;
+      notifyListeners();
     }
-  }
-
-  // AI Analysis simulation (graceful offline fallback)
-  Future<void> runAnalysisSimulation(String projectId) async {
-    _isAnalyzing = true;
-    _analysisStage = 1;
-    _analysisStatusMessage = 'Step 1/5: Preparing floor plan document...';
-    _isAnalysisFinished = false;
-    _analysisErrorMessage = null;
-    notifyListeners();
-
-    await Future.delayed(const Duration(milliseconds: 600));
-    _analysisStage = 2;
-    _analysisStatusMessage = 'Step 2/5: AI Vision model extracting rooms and architectural boundaries...';
-    notifyListeners();
-
-    await Future.delayed(const Duration(milliseconds: 700));
-    _analysisStage = 3;
-    _analysisStatusMessage = 'Step 3/5: Applying RS IEC 60364 electrical rules...';
-    notifyListeners();
-
-    await Future.delayed(const Duration(milliseconds: 700));
-    _analysisStage = 4;
-    _analysisStatusMessage = 'Step 4/5: Sizing conductors and balancing circuit phases...';
-    notifyListeners();
-
-    await Future.delayed(const Duration(milliseconds: 600));
-    _analysisStage = 5;
-    _analysisStatusMessage = 'Step 5/5: Generating Bill of Quantities & Rwandan Franc cost estimate...';
-    _isAnalyzing = false;
-    _isAnalysisFinished = true;
-
-    final index = _projects.indexWhere((p) => p.id == projectId);
-    if (index != -1) {
-      _projects[index] = _projects[index].copyWith(
-        currentStage: ProjectStage.electricalDesign,
-        roomsCount: _rooms.isNotEmpty ? _rooms.length : 8,
-        electricalPointsCount: _electricalPoints.isNotEmpty ? _electricalPoints.length : 24,
-        circuitsCount: _circuits.isNotEmpty ? _circuits.length : 5,
-        estimatedCostRwf: grandTotalCost,
-        updatedAt: DateTime.now(),
-      );
-      if (_selectedProject?.id == projectId) {
-        _selectedProject = _projects[index];
-      }
-    }
-    notifyListeners();
   }
 
   void resetAnalysis() {
@@ -647,6 +584,12 @@ class AppState extends ChangeNotifier {
     _analysisStage = 0;
     _isAnalysisFinished = false;
     _analysisErrorMessage = null;
+    notifyListeners();
+  }
+
+  @visibleForTesting
+  void debugSetBoqItems(List<BoqItem> items) {
+    _boqItems = List.of(items);
     notifyListeners();
   }
 

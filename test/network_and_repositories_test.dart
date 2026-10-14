@@ -289,16 +289,15 @@ void main() {
   });
 
   group('AppState Integration Workflow', () {
-    test('AppState runs analysis and populates results cleanly', () async {
+    test('a fresh AppState holds no demo data: no projects, rooms, circuits or materials', () {
       final state = AppState();
+      expect(state.projects, isEmpty);
+      expect(state.selectedProject, isNull);
+      expect(state.rooms, isEmpty);
+      expect(state.electricalPoints, isEmpty);
+      expect(state.circuits, isEmpty);
+      expect(state.boqItems, isEmpty);
       expect(state.isAnalyzing, isFalse);
-
-      await state.runAnalysisSimulation('sample-proj');
-
-      expect(state.isAnalyzing, isFalse);
-      expect(state.isAnalysisFinished, isTrue);
-      expect(state.analysisStage, 5);
-      expect(state.grandTotalCost, greaterThan(0));
     });
   });
 }

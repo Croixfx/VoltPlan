@@ -13,6 +13,7 @@ import 'package:voltplan/features/floor_plan/scale_calibration_screen.dart';
 import 'package:voltplan/features/floor_plan/upload_plan_screen.dart';
 import 'package:voltplan/features/analysis/ai_analysis_screen.dart';
 import 'package:voltplan/features/projects/create_project_screen.dart';
+import 'package:voltplan/shared/models/boq_item.dart';
 import 'package:voltplan/shared/models/project.dart';
 import 'package:voltplan/shared/state/app_state.dart';
 
@@ -97,11 +98,31 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify Dashboard elements
-      expect(find.text('Good morning, Eng. Patrick Mugabo'), findsOneWidget);
+      expect(find.textContaining(RegExp(r'^Good (morning|afternoon|evening)$')), findsOneWidget);
+      expect(find.textContaining('Patrick'), findsNothing); // no made-up user
       expect(find.text('Electrical Engine'), findsOneWidget);
       expect(find.text('New Project'), findsOneWidget);
       expect(find.text('Recent Projects'), findsOneWidget);
-      expect(find.text('Modern Family House'), findsOneWidget);
+      // Nothing pre-filled: an empty dashboard says so instead of showing sample projects
+      expect(find.text('No projects yet'), findsOneWidget);
+      expect(find.text('Modern Family House'), findsNothing);
+    });
+
+    testWidgets('Dashboard lists exactly the projects the user created', (tester) async {
+      final state = AppState();
+      state.createProject(
+        name: 'Gisozi Clinic',
+        client: 'Client',
+        buildingType: 'Commercial',
+        location: 'Kigali',
+        standard: 'RS IEC 60364',
+      );
+      await tester.pumpWidget(VoltPlanApp(state: state));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Gisozi Clinic'), findsOneWidget);
+      expect(find.text('No projects yet'), findsNothing);
+      expect(find.text('Modern Family House'), findsNothing);
     });
 
     testWidgets('Dashboard fits a standard mobile viewport', (
@@ -130,8 +151,10 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
 
       final state = AppState();
-      final project = state.projects.first;
-      final analysis = state.runAnalysisSimulation(project.id);
+      final project = state.createProject(
+        name: 'Preview', client: 'Client', buildingType: 'Residential',
+        location: 'Kigali', standard: 'RS IEC 60364',
+      );
 
       await tester.pumpWidget(
         MaterialApp(
@@ -150,8 +173,6 @@ void main() {
       final desktopPreviewHeight = tester.getSize(previewFinder).height;
       expect(desktopPreviewHeight, greaterThan(mobilePreviewHeight));
 
-      await tester.pump(const Duration(seconds: 3));
-      await analysis;
       expect(tester.takeException(), isNull);
     });
 
@@ -243,6 +264,10 @@ void main() {
       WidgetTester tester,
     ) async {
       final state = AppState();
+      state.createProject(
+        name: 'Nav Test', client: 'Client', buildingType: 'Residential',
+        location: 'Kigali', standard: 'RS IEC 60364',
+      );
       await tester.pumpWidget(VoltPlanApp(state: state));
       await tester.pumpAndSettle();
 
@@ -275,6 +300,15 @@ void main() {
         Theme.of(tester.element(find.text('Dark Theme'))).brightness,
         Brightness.dark,
       );
+    });
+
+    testWidgets('Materials tab explains itself when there is no project yet', (tester) async {
+      await tester.pumpWidget(VoltPlanApp(state: AppState()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Materials'));
+      await tester.pumpAndSettle();
+      expect(find.text('No materials yet'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     test('AppState project creation and filtering', () {
@@ -324,6 +358,12 @@ void main() {
 
     test('AppState BOQ quantity update recalculates totals', () {
       final state = AppState();
+      state.debugSetBoqItems(const [
+        BoqItem(
+          id: 'b1', category: BoqCategory.cables, item: 'Cable 2.5 mm2',
+          specification: '2.5 mm2 Cu', quantity: 100, unit: 'm', unitPriceRwf: 900,
+        ),
+      ]);
       final initialTotal = state.totalBoqCost;
       expect(initialTotal, greaterThan(0));
 
@@ -489,7 +529,10 @@ void main() {
         fakePicker.fileToReturn = null; // Dismissed
 
         final state = AppState();
-        final project = state.projects.first;
+        final project = state.createProject(
+          name: 'Dismiss', client: 'Client', buildingType: 'Residential',
+          location: 'Kigali', standard: 'RS IEC 60364',
+        );
 
         await tester.pumpWidget(
           MaterialApp(
@@ -508,9 +551,7 @@ void main() {
       },
     );
 
-    testWidgets('UploadPlanScreen selects sample drawing directly', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('UploadPlanScreen offers no fake sample drawings', (tester) async {
       final state = AppState();
       final project = state.createProject(
         name: 'Sample Project',
@@ -528,23 +569,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Ensure first sample plan's Select button is visible and tap it
-      final selectButtons = find.widgetWithText(AppButton, 'Select');
-      expect(selectButtons, findsWidgets);
-
-      await tester.ensureVisible(selectButtons.first);
-      await tester.pumpAndSettle();
-
-      await tester.tap(selectButtons.first);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-
-      expect(find.byType(AiAnalysisScreen), findsOneWidget);
-
-      // Advance simulation timers so no pending timers remain
-      await tester.pump(const Duration(seconds: 6));
+      expect(find.text('Sample Engineering Drawings'), findsNothing);
+      expect(find.text('Upload from Device'), findsOneWidget);
     });
   });
 }

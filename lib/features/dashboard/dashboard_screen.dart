@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_header.dart';
 import '../../core/widgets/status_badge.dart';
-import '../../core/widgets/engineering_sheet.dart';
 import '../../shared/models/project.dart';
 import '../../shared/state/app_state.dart';
 import '../projects/create_project_screen.dart';
@@ -28,8 +28,7 @@ class DashboardScreen extends StatelessWidget {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
-            // Simulated refresh
-            await Future.delayed(const Duration(milliseconds: 400));
+            await state.fetchBackendProjects();
           },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -37,67 +36,32 @@ class DashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Compact greeting and notification action.
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text.rich(
+                // Greeting (no made-up name: only what the user has actually set).
+                Text.rich(
+                  TextSpan(
+                    text: _greeting(),
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: isDark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight,
+                    ),
+                    children: [
+                      if (state.userName.isNotEmpty)
                         TextSpan(
-                          text: 'Good morning, ',
+                          text: ', ${state.userName}',
                           style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w700,
                             color: isDark
-                                ? AppColors.textSecondaryDark
-                                : AppColors.textSecondaryLight,
-                          ),
-                          children: [
-                            TextSpan(
-                              text: state.userName,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: isDark
-                                    ? AppColors.textPrimaryDark
-                                    : AppColors.textPrimaryLight,
-                              ),
-                            ),
-                          ],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: () =>
-                              _showNotificationsSheet(context, isDark),
-                          icon: const Badge(
-                            smallSize: 8,
-                            backgroundColor: AppColors.accentBlue,
-                            child: Icon(Icons.notifications_outlined, size: 24),
-                          ),
-                          style: IconButton.styleFrom(
-                            minimumSize: const Size(40, 40),
-                            fixedSize: const Size(40, 40),
-                            padding: EdgeInsets.zero,
-                            backgroundColor: isDark
-                                ? AppColors.surfaceSecondaryDark
-                                : AppColors.surfaceSecondaryLight,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              side: BorderSide(
-                                color: isDark
-                                    ? AppColors.borderDark
-                                    : AppColors.borderLight,
-                              ),
-                            ),
+                                ? AppColors.textPrimaryDark
+                                : AppColors.textPrimaryLight,
                           ),
                         ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
 
                 const SizedBox(height: 20),
@@ -184,16 +148,31 @@ class DashboardScreen extends StatelessWidget {
                 const SizedBox(height: 8),
 
                 // Recent Projects List
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: state.projects.take(4).length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final project = state.projects[index];
-                    return _buildProjectCard(context, project, isDark);
-                  },
-                ),
+                if (state.projects.isEmpty)
+                  EmptyState(
+                    icon: Icons.folder_open,
+                    title: 'No projects yet',
+                    message:
+                        'Create a project and upload a floor plan. Your projects will appear here.',
+                    actionLabel: '+ Create Project',
+                    onAction: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CreateProjectScreen(state: state),
+                      ),
+                    ),
+                  )
+                else
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: state.projects.take(4).length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final project = state.projects[index];
+                      return _buildProjectCard(context, project, isDark);
+                    },
+                  ),
                 const SizedBox(height: 20),
               ],
             ),
@@ -378,124 +357,10 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  void _showNotificationsSheet(BuildContext context, bool isDark) {
-    EngineeringBottomSheet.show(
-      context: context,
-      title: 'Notifications',
-      subtitle: 'Engineering alerts and review requests',
-      child: Column(
-        children: [
-          _buildNotificationItem(
-            icon: Icons.check_circle,
-            color: isDark
-                ? AppColors.textSecondaryDark
-                : AppColors.textSecondaryLight,
-            title: 'Analysis Completed',
-            message:
-                'Modern Family House rooms and circuits successfully mapped.',
-            time: '2 hours ago',
-            isDark: isDark,
-          ),
-          const SizedBox(height: 12),
-          _buildNotificationItem(
-            icon: Icons.warning_amber_rounded,
-            color: isDark
-                ? AppColors.statusWarningDark
-                : AppColors.statusWarning,
-            title: 'Review Required',
-            message:
-                'Inzovu Office Renovation cooker & server load exceeds 25A.',
-            time: '1 day ago',
-            isDark: isDark,
-          ),
-          const SizedBox(height: 12),
-          _buildNotificationItem(
-            icon: Icons.file_present_outlined,
-            color: AppColors.primaryBlue,
-            title: 'Standard Updated',
-            message: 'RS IEC 60364 compliance verified for Rwanda energy code.',
-            time: '3 days ago',
-            isDark: isDark,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNotificationItem({
-    required IconData icon,
-    required Color color,
-    required String title,
-    required String message,
-    required String time,
-    required bool isDark,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.surfaceSecondaryDark
-            : AppColors.surfaceSecondaryLight,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isDark ? AppColors.borderDark : AppColors.borderLight,
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(icon, color: color, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: isDark
-                            ? AppColors.textPrimaryDark
-                            : AppColors.textPrimaryLight,
-                      ),
-                    ),
-                    Text(
-                      time,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDark
-                            ? AppColors.textMutedDark
-                            : AppColors.textMutedLight,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  message,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isDark
-                        ? AppColors.textSecondaryDark
-                        : AppColors.textSecondaryLight,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  static String _greeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
   }
 }

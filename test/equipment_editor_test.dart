@@ -263,7 +263,10 @@ void main() {
 
   testWidgets('local-only projects explain why editing is unavailable', (tester) async {
     final state = AppState();
-    final project = state.projects.first; // mock project, id starts with proj-
+    final project = state.createProject(
+      name: 'Local only', client: 'Client', buildingType: 'Residential',
+      location: 'Kigali', standard: 'RS IEC 60364',
+    ); // id starts with proj-: not on the server
     final error = await state.addElectricalPoint(project.id, 'twin_socket', 0.5, 0.5);
     expect(error, contains('synced with the backend'));
   });
