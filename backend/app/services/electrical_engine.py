@@ -173,11 +173,10 @@ class ElectricalEngine:
                                     ux, uy = dx / d_len, dy / d_len
                                     x_mm = s_pt.x + 200.0 * ux
                                     y_mm = s_pt.y + 200.0 * uy
-                                    norm_pt = CoordinateTransformEngine.canonical_to_normalized(
+                                    # canonical_to_normalized returns an (x, y) pair of ratios
+                                    x_ratio, y_ratio = CoordinateTransformEngine.canonical_to_normalized(
                                         Point2D_mm(x=x_mm, y=y_mm), canonical_plan.transform
                                     )
-                                    x_ratio = norm_pt.x_ratio
-                                    y_ratio = norm_pt.y_ratio
                     reasoning = (
                         f"Mounted on wall '{nearby_wall or 'perimeter'}' within 200 mm of strike jamb of door '{nearby_door}', outside {clearance_applied}."
                     )

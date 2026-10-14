@@ -183,3 +183,23 @@ def test_switch_spatial_rule_fallback_attaches_to_wall():
     min_dist_to_wall = min(d_north, d_south, d_west, d_east)
     assert min_dist_to_wall <= 0.02, f"Switch at ({sw.x_ratio}, {sw.y_ratio}) is floating in open space!"
 
+
+
+def test_a_light_switch_inside_the_door_swing_is_pushed_clear_instead_of_crashing():
+    """Regression: the push-clear branch used to read an (x, y) tuple as an object and crash the whole analysis."""
+    import io
+    from PIL import Image
+    from app.schemas.floor_plan import ArchitecturalFeature, RoomObservation
+    from app.services.canonical_geometry_service import CanonicalGeometryService
+
+    rooms = [RoomObservation(id="r1", name="Bedroom", confidence=0.9, bounds=[0.10, 0.10, 0.50, 0.50])]
+    feats = [ArchitecturalFeature(id="d1", type="door", room="Bedroom", room_id="r1", confidence=0.9,
+                                  door_position=[0.50, 0.30], wall="east",
+                                  hinge_point=[0.50, 0.26], strike_point=[0.50, 0.34], swing_direction="into_room")]
+    plan = CanonicalGeometryService.build_canonical_floor_plan(
+        rooms=rooms, features=feats, pixel_width=1000, pixel_height=800,
+        scale_mm_per_pixel=10.0, is_scale_verified=True,
+    )
+    points = ElectricalEngine.generate_recommendations(rooms, feats, "Residential", canonical_plan=plan)
+    switches = [p for p in points if "switch" in p.type]
+    assert switches and all(0.0 <= p.x_ratio <= 1.0 and 0.0 <= p.y_ratio <= 1.0 for p in switches)

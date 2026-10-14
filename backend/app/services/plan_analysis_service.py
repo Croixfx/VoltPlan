@@ -1,5 +1,5 @@
 import os
-from typing import List, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
@@ -15,6 +15,7 @@ from app.services.electrical_engine import ElectricalEngine
 from app.services.circuit_engine import CircuitEngine
 from app.services.boq_engine import BoqEngine
 from app.services.cost_service import CostService
+from app.services.geometry_snapper import door_snapped_issues, snap_doors_to_walls
 from app.services.geometry_validator import GeometryIssue, GeometryValidator, has_errors, summarize
 from app.services.point_edit_service import PointEditService
 
@@ -71,14 +72,17 @@ def validate_geometry(
     rooms: List[RoomObservation],
     features: List[ArchitecturalFeature],
     image_path: str,
+    extra_issues: Sequence[GeometryIssue] = (),
 ) -> List[GeometryIssue]:
-    """Runs the pre-generation checks and stores the result on the analysis."""
+    """Runs the pre-generation checks and stores the result on the analysis.
+    `extra_issues` (e.g. warnings about doors that were snapped onto their wall) are stored alongside."""
     issues = GeometryValidator.validate(
         rooms,
         features,
         scale_mm_per_pixel=project.scale_mm_per_pixel,
         image_size_px=image_size_px(image_path),
     )
+    issues = [*extra_issues, *issues]
     analysis.geometry_issues_data = [i.model_dump() for i in issues]
     return issues
 
@@ -164,6 +168,7 @@ class PlanAnalysisService:
             rooms = vision_result.rooms
             features = ensure_feature_ids(vision_result.architectural_features)
             link_features_to_rooms(rooms, features)
+            snap_doors_to_walls(rooms, features)   # near-miss doors -> onto their wall (reported as warnings)
 
             analysis.rooms_data = [r.model_dump() for r in rooms]
             analysis.architectural_features_data = [f.model_dump() for f in features]
@@ -178,7 +183,9 @@ class PlanAnalysisService:
 
             # Geometry checks. Stop here (keeping the detected rooms/doors for the editor) on errors.
             analysis.current_step = "validating_geometry"
-            issues = validate_geometry(project, analysis, rooms, features, analysis_image_path)
+            issues = validate_geometry(
+                project, analysis, rooms, features, analysis_image_path, door_snapped_issues(rooms, features)
+            )
             if has_errors(issues):
                 logger.warning(f"[{project_id}] Geometry validation failed: {summarize(issues)}")
                 analysis.status = "failed"
@@ -228,10 +235,11 @@ class PlanAnalysisService:
         rooms = [RoomObservation(**r) for r in analysis.rooms_data]
         features = ensure_feature_ids([ArchitecturalFeature(**f) for f in (analysis.architectural_features_data or [])])
         link_features_to_rooms(rooms, features)
+        snap_doors_to_walls(rooms, features)
         image_path = analysis_image_path_for(project)
 
         # Validate BEFORE touching any existing result: a failed check leaves the current design intact.
-        issues = validate_geometry(project, analysis, rooms, features, image_path)
+        issues = validate_geometry(project, analysis, rooms, features, image_path, door_snapped_issues(rooms, features))
         if has_errors(issues):
             db.commit()
             raise geometry_failure(issues)

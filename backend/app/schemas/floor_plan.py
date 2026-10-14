@@ -38,6 +38,9 @@ class ArchitecturalFeature(BaseModel):
     bounds: Optional[List[float]] = Field(None, description="Normalized bounding box [x1, y1, x2, y2]")
     coordinates: Optional[Dict[str, Any]] = None
     is_manual: bool = Field(False, description="True if a user created or corrected this feature")
+    snapped_from: Optional[List[float]] = Field(
+        None, description="Where the AI placed this door before it was snapped onto its wall"
+    )
 
 
 class VisionAnalysisResult(BaseModel):

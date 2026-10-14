@@ -20,6 +20,7 @@ from app.models.analysis import Analysis
 from app.models.project import Project
 from app.schemas.floor_plan import ArchitecturalFeature, RoomObservation
 from app.schemas.geometry import DoorCreate, DoorUpdate, GeometryResponse, RoomCreate, RoomUpdate
+from app.services.geometry_snapper import door_snapped_issues
 from app.services.geometry_validator import WALLS, has_errors, wall_segment
 from app.services.plan_analysis_service import (
     analysis_image_path_for,
@@ -63,6 +64,14 @@ class GeometryEditService:
         return analysis_image_path_for(project) if project.floor_plan_path else ""
 
     @classmethod
+    def _issues(cls, project: Project, analysis: Analysis, rooms, features):
+        """Geometry-check results, plus a reminder for every door the system snapped onto its wall."""
+        if not project.floor_plan_path:
+            return []
+        return validate_geometry(project, analysis, rooms, features, cls._image_path(project),
+                                 door_snapped_issues(rooms, features))
+
+    @classmethod
     def _response(cls, project: Project, analysis: Analysis, rooms, features, issues) -> GeometryResponse:
         return GeometryResponse(
             project_id=project.id,
@@ -77,8 +86,7 @@ class GeometryEditService:
 
     @classmethod
     def _save(cls, project, analysis, rooms, features, db: Session, edited: bool = True) -> GeometryResponse:
-        issues = validate_geometry(project, analysis, rooms, features, cls._image_path(project)) \
-            if project.floor_plan_path else []
+        issues = cls._issues(project, analysis, rooms, features)
         analysis.rooms_data = [r.model_dump() for r in rooms]
         analysis.architectural_features_data = [f.model_dump() for f in features]
         if edited:
@@ -194,6 +202,7 @@ class GeometryEditService:
         feature.strike_side = strike_side
         feature.swing_direction = swing
         feature.is_manual = True
+        feature.snapped_from = None   # the user has placed / confirmed it
         feature.confidence = 1.0
 
     @classmethod
@@ -208,8 +217,7 @@ class GeometryEditService:
     @classmethod
     def get_geometry(cls, project_id: str, db: Session) -> GeometryResponse:
         project, analysis, rooms, features = cls._context(project_id, db)
-        issues = validate_geometry(project, analysis, rooms, features, cls._image_path(project)) \
-            if project.floor_plan_path else []
+        issues = cls._issues(project, analysis, rooms, features)
         return cls._response(project, analysis, rooms, features, issues)
 
     @classmethod
