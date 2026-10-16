@@ -94,11 +94,14 @@ pytest -v
 - `GET /api/projects` — List projects (with search filter)
 - `GET /api/projects/{id}` — Get project by ID
 - `POST /api/projects/{id}/plan` — Upload architectural plan (PDF/PNG/JPG up to 25 MB)
+- `POST /api/projects/plan-match` — Check whether the exact uploaded file bytes already belong to a project (returns that project or `null`)
 - `GET /api/projects/{id}/plan/file` — Stream rendered display plan
 - `POST /api/projects/{id}/analyze` — Run end-to-end vision and engineering pipeline
 - `GET /api/projects/{id}/analysis` — Get latest structured analysis results
 - `GET /api/projects/{id}/boq` — Get dynamic bill of quantities
 - `GET /api/projects/{id}/cost-estimate` — Get cost estimate in RWF
+
+Uploading a replacement plan to an existing project clears its saved scale and prior analysis/design results. Use the plan-match endpoint first when offering to resume existing work or deliberately start fresh.
 
 ---
 

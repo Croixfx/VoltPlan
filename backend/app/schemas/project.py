@@ -1,6 +1,19 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+
+
+def _check_standard(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return value
+    # imported here: the rule modules import the schemas, so a top-level import would be circular
+    from app.engineering_rules.registry import UnsupportedStandardError, get_engineering_standard
+
+    try:
+        get_engineering_standard(value)
+    except UnsupportedStandardError as e:
+        raise ValueError(str(e)) from None
+    return value
 
 
 class ProjectCreate(BaseModel):
@@ -11,6 +24,8 @@ class ProjectCreate(BaseModel):
     standard: str = Field("RS IEC 60364", max_length=100)
     notes: Optional[str] = ""
 
+    _standard_has_rules = field_validator("standard")(_check_standard)
+
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
@@ -20,6 +35,8 @@ class ProjectUpdate(BaseModel):
     standard: Optional[str] = None
     notes: Optional[str] = None
     status: Optional[str] = None
+
+    _standard_has_rules = field_validator("standard")(_check_standard)
 
 
 class ScalePoint(BaseModel):

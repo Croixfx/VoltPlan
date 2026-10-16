@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     # When set, all routes except /api/health require the header X-API-Key.
     API_KEY: str = ""
 
+    # Per-user login. AUTH_SECRET signs session tokens and must NOT be the API_KEY (the API key ships inside the
+    # mobile app). Empty = login switched off (local development, tests); production refuses to start without it.
+    AUTH_SECRET: str = ""
+    AUTH_TOKEN_DAYS: int = 30
+    # Projects created before accounts existed have no owner; the account with this email receives them when it
+    # signs in. Leave empty to leave them unowned (and therefore invisible).
+    LEGACY_OWNER_EMAIL: str = ""
+
     # Engineering Standard
     DEFAULT_STANDARD: str = "RS IEC 60364"
 

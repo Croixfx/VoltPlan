@@ -15,3 +15,4 @@ class PlanFile(Base):
     original_name = Column(String(255), nullable=True)
     original_bytes = Column(LargeBinary, nullable=False)
     display_png_bytes = Column(LargeBinary, nullable=True)
+    original_sha256 = Column(String(64), nullable=True, index=True)

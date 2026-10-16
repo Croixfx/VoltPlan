@@ -50,6 +50,14 @@ services:
       # Required: shared key the mobile app sends as X-API-Key. Enter it in the dashboard (never commit it).
       - key: API_KEY
         sync: false
+      # Required: signs the login tokens. A long random string, DIFFERENT from API_KEY (the API key ships inside the
+      # app; this one never leaves the server). Without it production refuses to start. Enter it in the dashboard.
+      - key: AUTH_SECRET
+        sync: false
+      # Projects made before accounts existed have no owner. The account with this email receives them the first
+      # time it signs in. Optional; leave empty to keep them unowned.
+      - key: LEGACY_OWNER_EMAIL
+        sync: false
       # mock = fake demo rooms for every upload; gemini / openai (with the matching key) read real plans.
       # Deliberately NOT given a value here: Render re-applies blueprint values on every sync, which would
       # silently switch a deployment back to mock data. Set it in the dashboard (Environment).

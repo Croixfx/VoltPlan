@@ -12,4 +12,5 @@ async def health_check():
         "environment": settings.APP_ENV,
         "ai_provider": settings.AI_PROVIDER,
         "default_standard": settings.DEFAULT_STANDARD,
+        "login_required": bool(settings.AUTH_SECRET),
     }

@@ -3,6 +3,7 @@
 The drawing is written to disk on upload (everything else reads it from there) and a copy is stored in the
 database. When the disk copy has been wiped, it is rebuilt from the database the next time it is needed.
 """
+import hashlib
 import os
 
 from sqlalchemy.orm import Session, object_session
@@ -30,6 +31,7 @@ def store_plan(db: Session, project: Project) -> None:
         db.add(row)
     row.original_name = project.floor_plan_name
     row.original_bytes = _read(project.floor_plan_path)
+    row.original_sha256 = hashlib.sha256(row.original_bytes).hexdigest()
     row.display_png_bytes = _read(display) if os.path.exists(display) else None
 
 

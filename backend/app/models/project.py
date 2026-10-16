@@ -16,6 +16,7 @@ class Project(Base):
     standard = Column(String(100), nullable=False, default="RS IEC 60364")
     notes = Column(Text, nullable=True, default="")
     status = Column(String(50), nullable=False, default="created")
+    owner_id = Column(String(36), nullable=True, index=True)  # the user who owns it (null: made before accounts)
 
     floor_plan_name = Column(String(255), nullable=True)
     floor_plan_path = Column(String(512), nullable=True)

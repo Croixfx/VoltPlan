@@ -4,7 +4,10 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.project import Project
 from app.schemas.project import ScaleCalibrationRequest, ScaleCalibrationResponse
+from app.services.plan_storage import ensure_plan_on_disk
 from app.services.scale_service import ScaleService
+from app.services.scale_suggestion_service import suggest_scale
+from app.services.vision_service import VisionProviderError
 
 router = APIRouter(prefix="/projects", tags=["Scale"])
 
@@ -38,6 +41,21 @@ def calibrate_scale(project_id: str, data: ScaleCalibrationRequest, db: Session 
     db.commit()
     db.refresh(project)
     return _to_response(project)
+
+
+@router.post("/{project_id}/scale/suggest")
+async def suggest_project_scale(project_id: str, db: Session = Depends(get_db)):
+    """Reads a dimension label off the drawing and proposes a calibration. Nothing is saved: the user checks the
+    two points and the distance on the plan, then confirms with PUT /scale."""
+    project = _get_project(project_id, db)
+    if not ensure_plan_on_disk(project):
+        raise HTTPException(status_code=400, detail="Upload a floor plan before calibrating its scale.")
+    try:
+        return await suggest_scale(project)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except VisionProviderError as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.get("/{project_id}/scale", response_model=ScaleCalibrationResponse)

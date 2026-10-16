@@ -54,11 +54,10 @@ def init_db():
             "geometry_issues_data": "JSON",
         },
         "projects": {"scale_mm_per_pixel": "FLOAT", "scale_calibration": "JSON"},
+        "plan_files": {"original_sha256": "VARCHAR(64)"},
     }
-    if engine.dialect.name != "sqlite":
-        return   # fresh PostgreSQL schemas are created complete by create_all; schema changes need Alembic
-    try:
-        with engine.connect() as conn:
+    with engine.begin() as conn:
+        if engine.dialect.name == "sqlite":
             for table, columns in additions.items():
                 existing = [row[1] for row in conn.execute(text(f"PRAGMA table_info({table})")).fetchall()]
                 if not existing:
@@ -66,6 +65,13 @@ def init_db():
                 for name, ddl in columns.items():
                     if name not in existing:
                         conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
-            conn.commit()
-    except Exception:
-        pass
+        else:
+            from sqlalchemy import inspect
+
+            existing = {column["name"] for column in inspect(conn).get_columns("plan_files")}
+            if "original_sha256" not in existing:
+                conn.execute(text("ALTER TABLE plan_files ADD COLUMN original_sha256 VARCHAR(64)"))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_plan_files_original_sha256 "
+            "ON plan_files (original_sha256)"
+        ))

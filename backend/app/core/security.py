@@ -37,3 +37,8 @@ def check_deployment_safety(cfg: Settings) -> None:
             "Refusing to start: APP_ENV=production with a real AI provider requires API_KEY to be set, "
             "otherwise anyone who finds the URL can spend your AI credit."
         )
+    if production and not cfg.AUTH_SECRET:
+        raise RuntimeError(
+            "Refusing to start: APP_ENV=production requires AUTH_SECRET (a long random string, different from "
+            "API_KEY) so that every user signs in and sees only their own projects."
+        )

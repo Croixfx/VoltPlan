@@ -6,6 +6,7 @@ def test_health_endpoint(client):
     assert "VoltPlan" in data["app"]
     assert data["ai_provider"] == "mock"
     assert data["default_standard"] == "RS IEC 60364"
+    assert data["login_required"] is False   # tests run without AUTH_SECRET
 
 
 def test_root_endpoint(client):

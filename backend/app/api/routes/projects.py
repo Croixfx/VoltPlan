@@ -5,16 +5,23 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, desc
 
+from app.core.auth import get_current_user
 from app.db.database import get_db
 from app.models.project import Project
+from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
 
 @router.post("", response_model=ProjectResponse, status_code=201)
-def create_project(data: ProjectCreate, db: Session = Depends(get_db)):
+def create_project(
+    data: ProjectCreate,
+    db: Session = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user),
+):
     project = Project(
+        owner_id=user.id if user else None,
         name=data.name.strip(),
         client=data.client.strip(),
         building_type=data.building_type,
@@ -33,8 +40,11 @@ def create_project(data: ProjectCreate, db: Session = Depends(get_db)):
 def list_projects(
     q: Optional[str] = Query(None, description="Search query by name, client, or location"),
     db: Session = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user),
 ):
     query = db.query(Project)
+    if user is not None:
+        query = query.filter(Project.owner_id == user.id)
     if q:
         search = f"%{q.strip()}%"
         query = query.filter(

@@ -93,3 +93,95 @@ def test_a_new_upload_replaces_the_stored_copy(client, db_session):
     client.post(f"/api/projects/{pid}/plan", files={"file": ("second.png", buf.getvalue(), "image/png")})
     db_session.expire_all()
     assert db_session.get(PlanFile, pid).original_bytes == buf.getvalue()
+
+
+def test_plan_match_returns_the_project_that_already_has_the_file(client):
+    pid = _project_with_plan(client)
+
+    response = client.post(
+        "/api/projects/plan-match",
+        files={"file": ("another-name.png", _png(), "image/png")},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["id"] == pid
+
+
+def test_plan_match_returns_null_when_the_file_is_new(client):
+    response = client.post(
+        "/api/projects/plan-match",
+        files={"file": ("new-plan.png", _png(), "image/png")},
+    )
+
+    assert response.status_code == 200
+    assert response.json() is None
+
+
+def test_plan_match_backfills_hashes_for_existing_stored_plans(client, db_session):
+    from app.models.project import Project
+
+    pid = _project_with_plan(client)
+    stored = db_session.get(PlanFile, pid)
+    stored.original_sha256 = None
+    db_session.commit()
+
+    response = client.post(
+        "/api/projects/plan-match",
+        files={"file": ("same-plan.png", _png(), "image/png")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["id"] == pid
+    db_session.expire_all()
+    assert db_session.get(PlanFile, pid).original_sha256
+    assert db_session.get(Project, pid) is not None
+
+
+def test_replacing_a_plan_clears_previous_analysis(client, db_session):
+    from app.models.analysis import Analysis
+
+    pid = _project_with_plan(client)
+    analysis = Analysis(
+        project_id=pid,
+        status="completed",
+        current_step="completed",
+        rooms_data=[{"id": "room-1"}],
+        architectural_features_data=[{"id": "door-1"}],
+        observations=["old observation"],
+        warnings=["old warning"],
+        canonical_geometry_data={"version": 1},
+        geometry_reviewed=True,
+        geometry_dirty=True,
+        geometry_issues_data=[{"code": "old"}],
+        electrical_points_data=[{"id": "point-1"}],
+        circuits_data=[{"id": "circuit-1"}],
+        wiring_arcs_data=[{"id": "arc-1"}],
+        boq_items_data=[{"id": "boq-1"}],
+        cost_estimate_data={"total": 1},
+    )
+    db_session.add(analysis)
+    db_session.commit()
+
+    replacement = client.post(
+        f"/api/projects/{pid}/plan",
+        files={"file": ("replacement.png", _png(), "image/png")},
+    )
+
+    assert replacement.status_code == 200, replacement.text
+    db_session.expire_all()
+    saved = db_session.query(Analysis).filter(Analysis.project_id == pid).one()
+    assert saved.status == "pending"
+    assert saved.current_step == "uploading"
+    assert saved.rooms_data == []
+    assert saved.architectural_features_data == []
+    assert saved.observations == []
+    assert saved.warnings == []
+    assert saved.canonical_geometry_data is None
+    assert saved.geometry_reviewed is False
+    assert saved.geometry_dirty is False
+    assert saved.geometry_issues_data == []
+    assert saved.electrical_points_data == []
+    assert saved.circuits_data == []
+    assert saved.wiring_arcs_data == []
+    assert saved.boq_items_data == []
+    assert saved.cost_estimate_data == {}

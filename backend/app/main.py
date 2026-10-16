@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.core.logging import setup_logging, logger
 from app.core.security import check_deployment_safety
 from app.db.database import init_db
+from app.db.owner_column import ensure_owner_column
 from app.api.router import api_router
 
 
@@ -18,6 +19,9 @@ async def lifespan(app: FastAPI):
         logger.warning("API_KEY is not set: the API is open to anyone who can reach it.")
     logger.info("Initializing VoltPlan database...")
     init_db()
+    ensure_owner_column()
+    if not settings.AUTH_SECRET:
+        logger.warning("AUTH_SECRET is not set: per-user login is OFF and every project is visible to every caller.")
     logger.info(f"VoltPlan backend started. AI Provider: '{settings.AI_PROVIDER}', Standard: '{settings.DEFAULT_STANDARD}'")
     yield
     logger.info("VoltPlan backend shutting down.")

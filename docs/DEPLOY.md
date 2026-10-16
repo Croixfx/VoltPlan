@@ -6,17 +6,27 @@ meant for trying the app out; Railway and Fly.io work with the same Dockerfile a
 
 ## 0. What is protected, and what is not
 
-* The backend has **no user accounts**. A **shared API key** gates every route except `/api/health`
-  (`X-API-Key` header). It stops strangers creating projects, uploading files and spending your AI credit.
-* The key is compiled into the APK, so **anyone who unpacks the APK can read it**. Hand the APK only to people
-  who should have access, and rotate the key (redeploy the backend + rebuild the APK) if it leaks.
-* With a real AI provider in production the backend **refuses to start without `API_KEY`**.
+* Two layers protect the server. A **shared API key** gates every route except `/api/health` (`X-API-Key`
+  header); it stops strangers creating projects and spending your AI credit. On top of it, **each person signs in
+  with an email and password** and only ever sees and changes their own projects (`/api/auth/register`,
+  `/api/auth/login`; session tokens are signed with `AUTH_SECRET`).
+* The API key is compiled into the APK, so **anyone who unpacks the APK can read it**. That is why it is not
+  the login: `AUTH_SECRET` stays on the server, and must be a different value. Rotate the API key (redeploy the
+  backend + rebuild the APK) if it leaks.
+* In production the backend **refuses to start without `AUTH_SECRET`**, and, with a real AI provider, without
+  `API_KEY`. **Set `AUTH_SECRET` in the Render dashboard before deploying a version that has accounts**,
+  otherwise the deploy will fail to start and the previous version keeps running.
+* Not built yet: password reset and email verification (a forgotten password cannot be recovered), and
+  signing out does not invalidate the token on the server (it is deleted from the device; it expires after
+  30 days). Accounts are open to anyone who holds the APK.
+* Projects created before accounts existed have no owner and are invisible to everyone. Set
+  `LEGACY_OWNER_EMAIL` to the email you will register with and they move to that account at its first sign-in.
 * On the free setup, uploaded plans live on temporary storage and disappear on every restart (see section 4).
 
-## 1. Make the API key
+## 1. Make the API key and the login secret
 
 ```powershell
-python -c "import secrets; print(secrets.token_urlsafe(32))"
+python -c "import secrets; print(secrets.token_urlsafe(32))"   # run twice: one for API_KEY, one for AUTH_SECRET
 ```
 
 Keep it in a password manager. Do not commit it, paste it into chats or put it in a file in the repository.
@@ -28,7 +38,7 @@ Keep it in a password manager. Do not commit it, paste it into chats or put it i
 2. Render dashboard → **New → Blueprint** → select this repository → it reads `render.yaml`.
 3. Check that the service and the database both show as **Free** (⚠ unverified from here; Render may allow only
    one free database per workspace). Nothing in this blueprint should have a price.
-4. When prompted, enter **`API_KEY`** (from step 1). Leave `GEMINI_API_KEY` / `OPENAI_API_KEY` empty for now.
+4. When prompted, enter **`API_KEY`** and **`AUTH_SECRET`** (from step 1; two different values). Leave `GEMINI_API_KEY` / `OPENAI_API_KEY` empty for now.
 5. Wait for the deploy, then open `https://<service>.onrender.com/api/health`. Expected:
    `{"status":"ok", ... "environment":"production", "ai_provider":"mock" ...}`.
 

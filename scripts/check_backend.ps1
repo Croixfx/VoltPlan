@@ -135,6 +135,27 @@ if (-not $ApiKey) {
 } else {
     $headers = @{ "X-API-Key" = $ApiKey }
 }
+
+# ---------------------------------------------------------------- 3b. sign in (servers with per-user login)
+if ($null -ne $headers -and $health.login_required) {
+    $email = $env:VOLTPLAN_EMAIL
+    $password = $env:VOLTPLAN_PASSWORD
+    if (-not $email -or -not $password) {
+        Add-Result "3b. Sign-in" "FAIL" "The server asks people to sign in. Set `$env:VOLTPLAN_EMAIL and `$env:VOLTPLAN_PASSWORD (an account created in the app) so this check can sign in."
+        $headers = $null
+    } else {
+        try {
+            $login = Invoke-RestMethod -Uri "$Base/auth/login" -Method POST -Headers $headers -TimeoutSec 30 `
+                -ContentType "application/json" -Body (@{ email = $email; password = $password } | ConvertTo-Json)
+            $token = $login.access_token
+            $headers = @{ "X-API-Key" = $ApiKey; "Authorization" = "Bearer $token" }
+            Add-Result "3b. Sign-in" "PASS" "signed in as $email"
+        } catch {
+            Add-Result "3b. Sign-in" "FAIL" (Hide-Secret "Could not sign in as ${email}: $($_.Exception.Message)")
+            $headers = $null
+        }
+    }
+}
 if ($null -ne $headers) {
     $projects = Invoke-Api "/projects" -Headers $headers
     $equipment = Invoke-Api "/equipment" -Headers $headers
@@ -217,6 +238,7 @@ if ($Full) {
             $http = New-Object System.Net.Http.HttpClient
             $http.Timeout = [TimeSpan]::FromSeconds(60)
             $http.DefaultRequestHeaders.Add("X-API-Key", $ApiKey)
+            if ($headers.ContainsKey("Authorization")) { $http.DefaultRequestHeaders.Add("Authorization", $headers["Authorization"]) }
             $form = New-Object System.Net.Http.MultipartFormDataContent
             $file = New-Object System.Net.Http.ByteArrayContent (, [IO.File]::ReadAllBytes($png))
             $file.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse("image/png")

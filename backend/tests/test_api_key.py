@@ -90,9 +90,14 @@ def test_production_with_a_real_ai_provider_refuses_to_start_without_a_key():
 
 
 def test_other_combinations_are_allowed():
-    check_deployment_safety(cfg(APP_ENV="production", AI_PROVIDER="gemini", API_KEY="k"))     # protected
-    check_deployment_safety(cfg(APP_ENV="production", AI_PROVIDER="mock", API_KEY=""))        # nothing to spend
+    check_deployment_safety(cfg(APP_ENV="production", AI_PROVIDER="gemini", API_KEY="k", AUTH_SECRET="s"))  # protected
+    check_deployment_safety(cfg(APP_ENV="production", AI_PROVIDER="mock", API_KEY="", AUTH_SECRET="s"))     # nothing to spend
     check_deployment_safety(cfg(APP_ENV="development", AI_PROVIDER="gemini", API_KEY=""))     # local use
+
+
+def test_production_refuses_to_start_without_a_login_secret():
+    with pytest.raises(RuntimeError, match="AUTH_SECRET"):
+        check_deployment_safety(cfg(APP_ENV="production", AI_PROVIDER="mock", API_KEY="k", AUTH_SECRET=""))
 
 
 def test_postgres_urls_from_hosting_platforms_are_normalised():
