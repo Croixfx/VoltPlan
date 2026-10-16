@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/widgets/app_button.dart';
+import '../../shared/models/project.dart';
 import '../../shared/state/app_state.dart';
 import 'project_overview_screen.dart';
 
@@ -46,10 +47,78 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
     super.dispose();
   }
 
-  void _submit() async {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSubmitting = true);
+
+    if (_selectedPlan != null && !widget.state.backendChecked) {
+      await widget.state.checkBackendConnection();
+    }
+
+    if (_selectedPlan != null && widget.state.isBackendConnected) {
+      Project? match;
+      try {
+        match = await widget.state.findMatchingPlan(
+          _selectedPlan!.bytes,
+          _selectedPlan!.name,
+        );
+      } catch (error) {
+        if (!mounted) return;
+        setState(() => _isSubmitting = false);
+        _showMessage(
+          'Could not check whether this plan is already saved: $error',
+        );
+        return;
+      }
+
+      if (!mounted) return;
+      if (match != null) {
+        final continueExisting = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('This plan is already saved'),
+            content: Text(
+              '"${match!.name}" for ${match.client} already contains this exact floor plan. '
+              'Continue that project, or create a fresh project with this plan?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                key: const Key('start-fresh-project'),
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Start fresh'),
+              ),
+              FilledButton(
+                key: const Key('continue-existing-project'),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Continue existing'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted) return;
+        if (continueExisting == null) {
+          setState(() => _isSubmitting = false);
+          return;
+        }
+        if (continueExisting) {
+          widget.state.selectProject(match);
+          setState(() => _isSubmitting = false);
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  ProjectOverviewScreen(state: widget.state, project: match!),
+            ),
+          );
+          return;
+        }
+      }
+    }
 
     final newProject = await widget.state.createProjectAsync(
       name: _nameController.text.trim(),
@@ -199,7 +268,9 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                           ),
                           const SizedBox(width: 12),
                           AppButton(
-                            label: _selectedPlan == null ? 'Choose plan' : 'Change',
+                            label: _selectedPlan == null
+                                ? 'Choose plan'
+                                : 'Change',
                             icon: Icons.upload_file_outlined,
                             height: 40,
                             isLoading: _isPickingPlan,

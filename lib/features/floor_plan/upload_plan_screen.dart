@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/widgets/app_button.dart';
 import '../../shared/models/project.dart';
 import '../../shared/state/app_state.dart';
+import '../projects/project_overview_screen.dart';
 import 'scale_calibration_screen.dart';
 
 class UploadPlanScreen extends StatefulWidget {
@@ -66,13 +67,101 @@ class _UploadPlanScreenState extends State<UploadPlanScreen> {
         return;
       }
 
+      if (!widget.project.id.startsWith('proj-') &&
+          !widget.state.backendChecked) {
+        await widget.state.checkBackendConnection();
+      }
+
+      if (!widget.project.id.startsWith('proj-') &&
+          widget.state.isBackendConnected) {
+        final match = await widget.state.findMatchingPlan(bytes, file.name);
+        if (!mounted) return;
+        if (match != null) {
+          final continueExisting = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('This plan is already saved'),
+              content: Text(
+                match.id == widget.project.id
+                    ? 'This is the plan already saved in "${match.name}". Continue your saved work, or start over and reset its analysis?'
+                    : 'This plan is saved in "${match.name}". Open that project, or start fresh in this project?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  key: const Key('start-over-plan'),
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Start over'),
+                ),
+                FilledButton(
+                  key: const Key('continue-saved-plan'),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: Text(
+                    match.id == widget.project.id
+                        ? 'Continue saved work'
+                        : 'Open saved project',
+                  ),
+                ),
+              ],
+            ),
+          );
+          if (!mounted) return;
+          if (continueExisting == null) {
+            setState(() => _isUploading = false);
+            return;
+          }
+          if (continueExisting) {
+            if (match.id == widget.project.id) {
+              Navigator.pop(context);
+            } else {
+              widget.state.selectProject(match);
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ProjectOverviewScreen(
+                    state: widget.state,
+                    project: match,
+                  ),
+                ),
+              );
+            }
+            return;
+          }
+        } else if (widget.project.floorPlanName != null) {
+          final replacePlan = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Start over with a new plan?'),
+              content: const Text(
+                'Replacing this plan clears its saved scale, room corrections, equipment, circuits, and estimates.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  key: const Key('replace-plan'),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Start over'),
+                ),
+              ],
+            ),
+          );
+          if (!mounted) return;
+          if (replacePlan != true) {
+            setState(() => _isUploading = false);
+            return;
+          }
+        }
+      }
+
       setState(() => _selectedFile = file.name);
 
-      await widget.state.uploadProjectPlan(
-        widget.project.id,
-        file.name,
-        bytes,
-      );
+      await widget.state.uploadProjectPlan(widget.project.id, file.name, bytes);
 
       final activeProj = widget.state.selectedProject ?? widget.project;
 
@@ -229,7 +318,6 @@ class _UploadPlanScreenState extends State<UploadPlanScreen> {
                   ),
                 ),
               ),
-
             ],
           ),
         ),

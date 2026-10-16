@@ -27,10 +27,10 @@ class AppState extends ChangeNotifier {
     GeometryRepository? geometryRepository,
     AnalysisRepository? analysisRepository,
     ProjectRepository? projectRepository,
-  })  : _projectRepo = projectRepository ?? ProjectRepository(),
-        _pointRepo = pointRepository ?? PointRepository(),
-        _geometryRepo = geometryRepository ?? GeometryRepository(),
-        _analysisRepo = analysisRepository ?? AnalysisRepository() {
+  }) : _projectRepo = projectRepository ?? ProjectRepository(),
+       _pointRepo = pointRepository ?? PointRepository(),
+       _geometryRepo = geometryRepository ?? GeometryRepository(),
+       _analysisRepo = analysisRepository ?? AnalysisRepository() {
     _init();
   }
 
@@ -94,7 +94,8 @@ class AppState extends ChangeNotifier {
   List<WiringArc> get wiringArcs => _currentAnalysisResult?.wiringArcs ?? [];
 
   List<ArchitecturalFeature> _architecturalFeatures = [];
-  List<ArchitecturalFeature> get architecturalFeatures => _architecturalFeatures;
+  List<ArchitecturalFeature> get architecturalFeatures =>
+      _architecturalFeatures;
 
   List<String> _analysisObservations = [];
   List<String> get analysisObservations => _analysisObservations;
@@ -160,7 +161,9 @@ class AppState extends ChangeNotifier {
       final backendProjects = await _projectRepo.getProjects();
       // The server is the source of truth; keep only projects created offline that have not been synced yet.
       final existingIds = backendProjects.map((p) => p.id).toSet();
-      final localOnly = _projects.where((p) => !existingIds.contains(p.id)).toList();
+      final localOnly = _projects
+          .where((p) => !existingIds.contains(p.id))
+          .toList();
       _projects = [...backendProjects, ...localOnly];
       if (_selectedProject != null) {
         final selectedId = _selectedProject!.id;
@@ -179,7 +182,9 @@ class AppState extends ChangeNotifier {
   }
 
   void toggleTheme() {
-    _themeMode = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    _themeMode = _themeMode == ThemeMode.dark
+        ? ThemeMode.light
+        : ThemeMode.dark;
     notifyListeners();
   }
 
@@ -205,7 +210,8 @@ class AppState extends ChangeNotifier {
 
   List<Project> get filteredProjects {
     return _projects.where((p) {
-      final matchesQuery = _searchQuery.isEmpty ||
+      final matchesQuery =
+          _searchQuery.isEmpty ||
           p.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           p.client.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           p.location.toLowerCase().contains(_searchQuery.toLowerCase());
@@ -278,7 +284,9 @@ class AppState extends ChangeNotifier {
         notes: notes,
       );
 
-      if (floorPlanBytes != null && floorPlanBytes.isNotEmpty && floorPlanName != null) {
+      if (floorPlanBytes != null &&
+          floorPlanBytes.isNotEmpty &&
+          floorPlanName != null) {
         project = await _projectRepo.uploadPlan(
           projectId: project.id,
           fileBytes: floorPlanBytes,
@@ -313,7 +321,10 @@ class AppState extends ChangeNotifier {
     return project;
   }
 
-  Future<void> _syncNewProjectToBackend(Project localProject, Uint8List? bytes) async {
+  Future<void> _syncNewProjectToBackend(
+    Project localProject,
+    Uint8List? bytes,
+  ) async {
     try {
       final backendProj = await _projectRepo.createProject(
         name: localProject.name,
@@ -325,7 +336,9 @@ class AppState extends ChangeNotifier {
       );
 
       Project finalProj = backendProj;
-      if (bytes != null && bytes.isNotEmpty && localProject.floorPlanName != null) {
+      if (bytes != null &&
+          bytes.isNotEmpty &&
+          localProject.floorPlanName != null) {
         finalProj = await _projectRepo.uploadPlan(
           projectId: backendProj.id,
           fileBytes: bytes,
@@ -378,10 +391,17 @@ class AppState extends ChangeNotifier {
       return true;
     } catch (e) {
       // Fallback local update
-      setProjectFloorPlan(projectId, floorPlanName, floorPlanBytes: floorPlanBytes);
+      setProjectFloorPlan(
+        projectId,
+        floorPlanName,
+        floorPlanBytes: floorPlanBytes,
+      );
       return false;
     }
   }
+
+  Future<Project?> findMatchingPlan(Uint8List fileBytes, String filename) =>
+      _projectRepo.findMatchingPlan(fileBytes: fileBytes, filename: filename);
 
   /// Calibrates plan scale on the backend. Returns null on success, otherwise
   /// a user-facing error message.
@@ -459,10 +479,14 @@ class AppState extends ChangeNotifier {
 
   // Real AI Analysis Execution against FastAPI Backend
   /// [discardCorrections] re-reads the plan with AI even if the user corrected rooms / doors (those are lost).
-  Future<void> runRealAnalysis(String projectId, {bool discardCorrections = false}) async {
+  Future<void> runRealAnalysis(
+    String projectId, {
+    bool discardCorrections = false,
+  }) async {
     _isAnalyzing = true;
     _analysisStage = 1;
-    _analysisStatusMessage = 'Step 1/5: Preparing and rendering architectural floor plan...';
+    _analysisStatusMessage =
+        'Step 1/5: Preparing and rendering architectural floor plan...';
     _analysisErrorMessage = null;
     _isAnalysisFinished = false;
     notifyListeners();
@@ -483,7 +507,8 @@ class AppState extends ChangeNotifier {
           );
           effectiveProjectId = created.id;
 
-          if (currentProj.floorPlanBytes != null && currentProj.floorPlanBytes!.isNotEmpty) {
+          if (currentProj.floorPlanBytes != null &&
+              currentProj.floorPlanBytes!.isNotEmpty) {
             await _projectRepo.uploadPlan(
               projectId: effectiveProjectId,
               fileBytes: currentProj.floorPlanBytes!,
@@ -510,24 +535,31 @@ class AppState extends ChangeNotifier {
       }
 
       _analysisStage = 2;
-      _analysisStatusMessage = 'Step 2/5: AI Vision model extracting rooms and architectural boundaries...';
+      _analysisStatusMessage =
+          'Step 2/5: AI Vision model extracting rooms and architectural boundaries...';
       notifyListeners();
 
       // Trigger analysis pipeline
-      await _analysisRepo.triggerAnalysis(effectiveProjectId, discardCorrections: discardCorrections);
+      await _analysisRepo.triggerAnalysis(
+        effectiveProjectId,
+        discardCorrections: discardCorrections,
+      );
 
       _analysisStage = 3;
-      _analysisStatusMessage = 'Step 3/5: Applying Rwandan RS IEC 60364 electrical engineering rules...';
+      _analysisStatusMessage =
+          'Step 3/5: Applying Rwandan RS IEC 60364 electrical engineering rules...';
       notifyListeners();
 
       await Future.delayed(const Duration(milliseconds: 300));
       _analysisStage = 4;
-      _analysisStatusMessage = 'Step 4/5: Sizing conductors, circuit breakers, and balancing phases (L1, L2, L3)...';
+      _analysisStatusMessage =
+          'Step 4/5: Sizing conductors, circuit breakers, and balancing phases (L1, L2, L3)...';
       notifyListeners();
 
       await Future.delayed(const Duration(milliseconds: 300));
       _analysisStage = 5;
-      _analysisStatusMessage = 'Step 5/5: Generating Bill of Quantities & Rwandan Franc preliminary cost estimate...';
+      _analysisStatusMessage =
+          'Step 5/5: Generating Bill of Quantities & Rwandan Franc preliminary cost estimate...';
       notifyListeners();
 
       // Fetch structured analysis results
@@ -546,12 +578,15 @@ class AppState extends ChangeNotifier {
       _hasGeometryCorrections = result.geometryReviewed;
       _geometryNeedsRegeneration = result.geometryNeedsRegeneration;
 
-      _analysisStatusMessage = 'Analysis and electrical engineering calculations completed successfully.';
+      _analysisStatusMessage =
+          'Analysis and electrical engineering calculations completed successfully.';
       _isAnalyzing = false;
       _isAnalysisFinished = true;
 
       // Update project record
-      final idx = _projects.indexWhere((p) => p.id == effectiveProjectId || p.id == projectId);
+      final idx = _projects.indexWhere(
+        (p) => p.id == effectiveProjectId || p.id == projectId,
+      );
       if (idx != -1) {
         final estCost = result.costEstimate?.grandTotalRwf ?? grandTotalCost;
         _projects[idx] = _projects[idx].copyWith(
@@ -576,7 +611,8 @@ class AppState extends ChangeNotifier {
             (e.code == geometryCorrectedCode ||
                 e.message.contains('reset_geometry') ||
                 e.message.contains('manually corrected'))) {
-          _hasGeometryCorrections = true; // decides which buttons the analysis screen offers
+          _hasGeometryCorrections =
+              true; // decides which buttons the analysis screen offers
         }
       } else {
         _analysisErrorMessage = friendlyApiMessage(e.toString());
@@ -674,7 +710,8 @@ class AppState extends ChangeNotifier {
     _isAnalyzing = true;
     _analysisStage = 3;
     _analysisErrorMessage = null;
-    _analysisStatusMessage = 'Rebuilding equipment, circuits and BOQ from your corrected rooms and doors...';
+    _analysisStatusMessage =
+        'Rebuilding equipment, circuits and BOQ from your corrected rooms and doors...';
     notifyListeners();
     try {
       _applyEditedAnalysis(await _geometryRepo.regenerate(projectId));
@@ -687,7 +724,9 @@ class AppState extends ChangeNotifier {
       notifyListeners();
       return null;
     } catch (e) {
-      final message = friendlyApiMessage(e is ApiException ? e.message : e.toString());
+      final message = friendlyApiMessage(
+        e is ApiException ? e.message : e.toString(),
+      );
       _isAnalyzing = false;
       _analysisErrorMessage = message;
       notifyListeners();
@@ -753,7 +792,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<String?> _runEdit(String projectId, Future<AnalysisResult> Function() action) async {
+  Future<String?> _runEdit(
+    String projectId,
+    Future<AnalysisResult> Function() action,
+  ) async {
     final blocker = _editBlocker(projectId);
     if (blocker != null) return blocker;
     try {
@@ -767,14 +809,36 @@ class AppState extends ChangeNotifier {
   }
 
   /// Returns null on success, otherwise the backend's rejection message.
-  Future<String?> addElectricalPoint(String projectId, String typeId, double x, double y) =>
-      _runEdit(projectId, () => _pointRepo.addPoint(projectId: projectId, typeId: typeId, x: x, y: y));
+  Future<String?> addElectricalPoint(
+    String projectId,
+    String typeId,
+    double x,
+    double y,
+  ) => _runEdit(
+    projectId,
+    () => _pointRepo.addPoint(projectId: projectId, typeId: typeId, x: x, y: y),
+  );
 
-  Future<String?> moveElectricalPoint(String projectId, String pointId, double x, double y) =>
-      _runEdit(projectId, () => _pointRepo.movePoint(projectId: projectId, pointId: pointId, x: x, y: y));
+  Future<String?> moveElectricalPoint(
+    String projectId,
+    String pointId,
+    double x,
+    double y,
+  ) => _runEdit(
+    projectId,
+    () => _pointRepo.movePoint(
+      projectId: projectId,
+      pointId: pointId,
+      x: x,
+      y: y,
+    ),
+  );
 
   Future<String?> deleteElectricalPoint(String projectId, String pointId) =>
-      _runEdit(projectId, () => _pointRepo.deletePoint(projectId: projectId, pointId: pointId));
+      _runEdit(
+        projectId,
+        () => _pointRepo.deletePoint(projectId: projectId, pointId: pointId),
+      );
 
   void nudgePoint(String pointId, double dxRatio, double dyRatio) {
     final idx = _electricalPoints.indexWhere((p) => p.id == pointId);
@@ -792,7 +856,8 @@ class AppState extends ChangeNotifier {
     for (final p in _electricalPoints) {
       if (p.type == ElectricalPointType.switchPoint) {
         roomSwitches.putIfAbsent(p.roomId, () => []).add(p);
-      } else if (p.type == ElectricalPointType.light || p.type == ElectricalPointType.downlight) {
+      } else if (p.type == ElectricalPointType.light ||
+          p.type == ElectricalPointType.downlight) {
         roomLights.putIfAbsent(p.roomId, () => []).add(p);
       }
     }
@@ -840,7 +905,10 @@ class AppState extends ChangeNotifier {
             switchId: nearestSw.id,
             luminaireId: lt.id,
             startPoint: [nearestSw.xRatio, nearestSw.yRatio],
-            controlPoint: [double.parse(cpX.toStringAsFixed(3)), double.parse(cpY.toStringAsFixed(3))],
+            controlPoint: [
+              double.parse(cpX.toStringAsFixed(3)),
+              double.parse(cpY.toStringAsFixed(3)),
+            ],
             endPoint: [lt.xRatio, lt.yRatio],
             lengthNorm: chord * (1.0 + (8.0 * sag * sag) / 3.0),
           ),
@@ -912,6 +980,14 @@ class AppState extends ChangeNotifier {
   }
 
   // Profile updates
+  /// Forgets everything that belonged to the person who just signed out.
+  void clearForSignOut() {
+    _projects = [];
+    _selectedProject = null;
+    _userName = '';
+    notifyListeners();
+  }
+
   void updateProfile({
     String? name,
     String? company,

@@ -12,7 +12,8 @@ class ProjectRepository {
     try {
       final res = await _client.get(ApiEndpoints.health);
       // The backend answers {"status": "ok"}; older builds said "healthy".
-      return res is Map && (res['status'] == 'ok' || res['status'] == 'healthy');
+      return res is Map &&
+          (res['status'] == 'ok' || res['status'] == 'healthy');
     } catch (_) {
       return false;
     }
@@ -76,6 +77,19 @@ class ProjectRepository {
       fileBytes,
       filename,
     );
+    return Project.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<Project?> findMatchingPlan({
+    required Uint8List fileBytes,
+    required String filename,
+  }) async {
+    final data = await _client.uploadFile(
+      ApiEndpoints.projectPlanMatch,
+      fileBytes,
+      filename,
+    );
+    if (data == null) return null;
     return Project.fromJson(data as Map<String, dynamic>);
   }
 

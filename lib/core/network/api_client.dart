@@ -25,6 +25,24 @@ class ApiClient {
   Future<dynamic> get(String url, {Map<String, String>? headers}) =>
       _send('GET', url, headers: headers, timeout: const Duration(seconds: 30), retryAfterWake: true);
 
+  /// Downloads a binary answer (a PDF report). Errors come back as the usual [ApiException].
+  Future<Uint8List> getBytes(String url, {Duration timeout = const Duration(seconds: 90)}) async {
+    final uri = Uri.parse(url);
+    try {
+      await _waker.ensureAwake(_client, uri);
+      final request = http.Request('GET', uri)
+        ..headers.addAll({'Accept': '*/*', ...ApiEndpoints.authHeaders});
+      final response = await http.Response.fromStream(await _client.send(request).timeout(timeout));
+      _waker.markAwake();
+      if (response.statusCode >= 200 && response.statusCode < 300) return response.bodyBytes;
+      _processResponse(response); // throws the error carried by the response
+      throw ApiException('Request failed with status ${response.statusCode}');
+    } catch (e) {
+      _handleError(e);
+      rethrow;
+    }
+  }
+
   /// 100 s: analysing a plan with a real AI model (including its own retries) can take longer than 45 s.
   Future<dynamic> post(String url, {dynamic body, Map<String, String>? headers}) =>
       _send('POST', url, body: body, headers: headers, timeout: const Duration(seconds: 100));
@@ -114,6 +132,11 @@ class ApiClient {
 
   dynamic _processResponse(http.Response response) {
     final statusCode = response.statusCode;
+
+    // A rejected session token (not a wrong password, which arrives while signed out) means "sign in again".
+    if (statusCode == 401 && ApiEndpoints.userToken.isNotEmpty) {
+      ApiEndpoints.onSessionExpired?.call();
+    }
 
     if (statusCode >= 200 && statusCode < 300) {
       if (response.body.isEmpty) return null;

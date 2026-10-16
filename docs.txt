@@ -1,3 +1,4 @@
+Session Id: claude --resume 3c1e6e49-e19e-45d7-a3cd-9a548baf099c
 VOLTPLAN - PROJECT STATUS REPORT
 ================================
 Branch: remediation/phase1-geometry
@@ -238,3 +239,38 @@ Adding equipment (already easy):
   - Never reintroduce silent fallbacks: output that looks real but is not
     destroys trust faster than an explicit error.
   - Prices and quantities are estimates until validated locally.
+
+
+Quick wins (about an hour each)
+
+  1. Server wake-up handling in the app. The free server sleeps and takes about 50 seconds to wake, but the app gives up after 30–60. Today a user sees a failure on the
+     first tap each morning. I'd add an automatic retry with a "Waking the server up, this takes up to a minute…" message.
+  2. Snap near-miss doors automatically. Your real plan stopped because the AI put a door 2% off a wall. If a door is within about 4% of a wall, I'd snap it to that wall
+     and flag it for review, instead of blocking you. Only misplacements like the foyer door (13% off) would still stop and ask.
+
+  Worth doing soon
+
+  3. Uploaded plans that survive restarts. On the free setup, every restart deletes the plan images, and you have to re-upload before analysing again. Storing the image in
+     the database fixes this at no extra cost.
+  4. A real client PDF report. The report screen is still a mock animation. A real PDF would show the plan with symbols, circuit schedule, BOQ in RWF, the calculations and
+     the disclaimers. This is the deliverable clients actually receive.
+  5. Auto-read the plan scale. Gemini can read dimension labels, so the app could suggest the scale calibration instead of making you tap two points.
+
+  Bigger projects
+
+  6. Per-user login. At the moment one shared key unlocks everything, and anyone holding the APK sees every project. You need this before real client data goes in.
+  7. L-shaped and other non-rectangular rooms. Today those must be split into two rectangles.
+  8. Multi-storey plans (separate floors, a distribution board per floor).
+  9. Other standards (BS 7671, NEC). The settings screen lists them but only RS IEC 60364 has rules.
+
+  Things that need you, not code
+
+  - Test on 3–5 plans an electrician has already designed. The evaluation tool is built and waiting. It would show how often the AI misreads real drawings and which fixes
+    matter most. Without it I'm guessing at what to improve.
+  - Get the calculations reviewed. The electrician should check docs/CALCULATION_REVIEW.md. Its main finding is that the default circuits only pass when cables aren't
+    bunched.
+
+  My recommendation
+
+  Do 1 and 2 now, since they remove the two frustrations you've hit already. Then 4, the PDF report, because it makes the product something you can hand to a client.
+  Meanwhile, run the real-plan evaluation in pa

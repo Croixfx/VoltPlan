@@ -1,4 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../core/network/api_client.dart';
+import '../../core/network/api_endpoints.dart';
+import '../../core/network/api_exceptions.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/app_button.dart';
@@ -22,25 +28,56 @@ class ReportScreen extends StatefulWidget {
 class _ReportScreenState extends State<ReportScreen> {
   bool _isGenerating = false;
 
-  void _generatePdf() async {
+  Future<void> _generatePdf() async {
+    if (_isGenerating) return;
     setState(() => _isGenerating = true);
-
-    await Future.delayed(const Duration(milliseconds: 1400));
-
-    if (mounted) {
+    try {
+      final bytes = await ApiClient().getBytes(
+        ApiEndpoints.projectReport(widget.project.id),
+      );
+      if (!mounted) return;
       setState(() => _isGenerating = false);
-      _showGeneratedPdfSheet();
+      _showGeneratedPdfSheet(bytes);
+    } on ApiException catch (e) {
+      _reportFailed(e.statusCode == 409
+          ? 'Run the analysis first, then create the report.'
+          : e.message);
+    } catch (e) {
+      _reportFailed('Could not create the report: $e');
     }
   }
 
-  void _showGeneratedPdfSheet() {
+  void _reportFailed(String message) {
+    if (!mounted) return;
+    setState(() => _isGenerating = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String get _fileName =>
+      'VoltPlan_${widget.project.name.replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_')}_Report.pdf';
+
+  Future<void> _shareReport(Uint8List bytes) async {
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile.fromData(bytes, mimeType: 'application/pdf', name: _fileName)],
+          fileNameOverrides: [_fileName],
+          subject: 'Electrical design - ${widget.project.name}',
+        ),
+      );
+    } catch (e) {
+      _reportFailed('Could not open the share sheet: $e');
+    }
+  }
+
+  void _showGeneratedPdfSheet(Uint8List bytes) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sizeKb = (bytes.length / 1024).round();
 
     EngineeringBottomSheet.show(
       context: context,
-      title: 'Report Generated',
-      subtitle:
-          'VoltPlan_${widget.project.name.replaceAll(' ', '_')}_Report.pdf',
+      title: 'Report ready',
+      subtitle: _fileName,
       child: Column(
         children: [
           Container(
@@ -74,7 +111,7 @@ class _ReportScreenState extends State<ReportScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'VoltPlan_Engineering_Report.pdf',
+                        _fileName,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -85,7 +122,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '6 Pages • 2.4 MB • Generated ${Formatters.formatDate(DateTime.now())}',
+                        '$sizeKb KB • Created ${Formatters.formatDate(DateTime.now())}',
                         style: TextStyle(
                           fontSize: 13,
                           color: isDark
@@ -101,7 +138,9 @@ class _ReportScreenState extends State<ReportScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'This commercial engineering report includes complete architectural overlays, circuit schedules, bill of quantities, and supplier cost estimates ready for client signing.',
+            'The report holds the plan with equipment symbols, equipment and circuit schedules, '
+            'calculations, bill of quantities and cost. It is a preliminary design: a licensed '
+            'engineer must review and sign it before use.',
             style: TextStyle(
               fontSize: 14,
               color: isDark
@@ -111,39 +150,11 @@ class _ReportScreenState extends State<ReportScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: AppButton(
-                  label: 'Share Document',
-                  icon: Icons.share_outlined,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: () {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Engineering Report PDF ready to share'),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: AppButton(
-                  label: 'Download PDF',
-                  icon: Icons.download_outlined,
-                  onPressed: () {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Report saved to Downloads folder'),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+          AppButton(
+            label: 'Save or share PDF',
+            icon: Icons.ios_share,
+            isFullWidth: true,
+            onPressed: () => _shareReport(bytes),
           ),
         ],
       ),
@@ -160,8 +171,8 @@ class _ReportScreenState extends State<ReportScreen> {
         title: const Text('Engineering Report'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.print_outlined),
-            tooltip: 'Print',
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            tooltip: 'Create PDF',
             onPressed: _generatePdf,
           ),
         ],
@@ -178,7 +189,7 @@ class _ReportScreenState extends State<ReportScreen> {
         ),
         child: SafeArea(
           child: AppButton(
-            label: 'Generate Report',
+            label: 'Create PDF report',
             icon: Icons.picture_as_pdf,
             isLoading: _isGenerating,
             isFullWidth: true,

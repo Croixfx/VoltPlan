@@ -5,6 +5,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/engineering_sheet.dart';
 import '../../core/widgets/section_header.dart';
 import '../../shared/state/app_state.dart';
+import '../auth/auth_state.dart';
 
 class SettingsScreen extends StatelessWidget {
   final AppState state;
@@ -249,6 +250,17 @@ class SettingsScreen extends StatelessWidget {
                         isDark: isDark,
                         onTap: () => _showAboutDialog(context),
                       ),
+                      if (AuthState.instance?.loginRequired == true &&
+                          AuthState.instance?.isSignedIn == true) ...[
+                        const Divider(height: 1),
+                        _buildSettingsTile(
+                          icon: Icons.logout,
+                          title: 'Sign out',
+                          value: AuthState.instance!.email,
+                          isDark: isDark,
+                          onTap: () => AuthState.instance?.signOut(),
+                        ),
+                      ],
                     ],
                   ),
 

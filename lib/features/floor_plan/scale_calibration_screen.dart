@@ -4,7 +4,9 @@ import '../../core/network/api_endpoints.dart';
 import '../../core/widgets/app_button.dart';
 import '../../shared/models/project.dart';
 import '../../shared/state/app_state.dart';
+import '../../core/network/api_exceptions.dart';
 import '../analysis/ai_analysis_screen.dart';
+import 'scale_suggestion.dart';
 
 enum ScaleUnit {
   metres('m', 1000),
@@ -33,11 +35,15 @@ class ScaleCalibrationScreen extends StatefulWidget {
   /// after saving instead of continuing into AI analysis.
   final bool returnToCaller;
 
+  /// Reads a dimension off the drawing; replaceable in tests.
+  final ScaleSuggester suggestScale;
+
   const ScaleCalibrationScreen({
     super.key,
     required this.state,
     required this.project,
     this.returnToCaller = false,
+    this.suggestScale = fetchScaleSuggestion,
   });
 
   @override
@@ -52,7 +58,9 @@ class _ScaleCalibrationScreenState extends State<ScaleCalibrationScreen> {
   double? _aspectRatio;
   bool _imageFailed = false;
   bool _isSaving = false;
+  bool _isReading = false;
   String? _error;
+  String? _readNote;
 
   late final String _imageUrl = ApiEndpoints.projectPlanFile(widget.project.id);
 
@@ -103,7 +111,37 @@ class _ScaleCalibrationScreenState extends State<ScaleCalibrationScreen> {
         _pointA = null;
         _pointB = null;
         _error = null;
+        _readNote = null;
       });
+
+  /// Lets the server read a dimension label off the drawing and fills in the two points and the distance. The
+  /// user still has to check them against the plan and press save.
+  Future<void> _readFromDrawing() async {
+    setState(() {
+      _isReading = true;
+      _error = null;
+      _readNote = null;
+    });
+    try {
+      final s = await widget.suggestScale(widget.project.id);
+      if (!mounted) return;
+      setState(() {
+        _pointA = s.pointA;
+        _pointB = s.pointB;
+        _unit = ScaleUnit.millimetres;
+        _distanceController.text = s.realDistanceMm.round().toString();
+        _readNote = 'Read "${s.labelText}" from the drawing'
+            '${s.note.isEmpty ? '' : ' (${s.note})'}. Check that the two marked points sit on the ends of '
+            'that dimension, then save.';
+      });
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Could not read the scale: $e');
+    } finally {
+      if (mounted) setState(() => _isReading = false);
+    }
+  }
 
   bool get _canSave =>
       _pointA != null &&
@@ -231,6 +269,10 @@ class _ScaleCalibrationScreenState extends State<ScaleCalibrationScreen> {
                       ),
                     ],
                   ),
+                  if (_readNote != null) ...[
+                    const SizedBox(height: 8),
+                    Text(_readNote!, style: TextStyle(fontSize: 13, color: secondary)),
+                  ],
                   if (_error != null) ...[
                     const SizedBox(height: 8),
                     Text(
@@ -239,6 +281,14 @@ class _ScaleCalibrationScreenState extends State<ScaleCalibrationScreen> {
                     ),
                   ],
                   const SizedBox(height: 12),
+                  AppButton(
+                    label: 'Read scale from drawing',
+                    icon: Icons.auto_fix_high,
+                    variant: AppButtonVariant.secondary,
+                    isLoading: _isReading,
+                    onPressed: _isSaving || _isReading ? null : _readFromDrawing,
+                  ),
+                  const SizedBox(height: 8),
                   AppButton(
                     label: widget.returnToCaller
                         ? 'Save Scale'

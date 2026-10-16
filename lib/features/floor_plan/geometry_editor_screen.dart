@@ -57,8 +57,10 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
   String? _selRoomId;
   String? _selDoorId;
   Rect? _dragRect; // preview while resizing / moving the selected room
-  GeoDoor? _dragDoor; // preview while sliding the selected door (snapped to a wall)
-  Offset? _doorPointer; // where the finger actually is; the preview is only its projection onto a wall
+  GeoDoor?
+  _dragDoor; // preview while sliding the selected door (snapped to a wall)
+  Offset?
+  _doorPointer; // where the finger actually is; the preview is only its projection onto a wall
 
   String get _pid => (widget.state.selectedProject ?? widget.project).id;
   late final String _imageUrl = ApiEndpoints.projectPlanFile(_pid);
@@ -69,11 +71,15 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
     if (widget.planAspectRatio != null) {
       _aspect = widget.planAspectRatio;
     } else {
-      final stream = NetworkImage(_imageUrl, headers: ApiEndpoints.authHeaders).resolve(const ImageConfiguration());
+      final stream = NetworkImage(
+        _imageUrl,
+        headers: ApiEndpoints.authHeaders,
+      ).resolve(const ImageConfiguration());
       late final ImageStreamListener listener;
       listener = ImageStreamListener(
         (info, _) {
-          if (mounted) setState(() => _aspect = info.image.width / info.image.height);
+          if (mounted)
+            setState(() => _aspect = info.image.width / info.image.height);
           stream.removeListener(listener);
         },
         onError: (_, _) {
@@ -111,11 +117,13 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text(message),
-        backgroundColor: error ? Colors.red.shade700 : null,
-        duration: Duration(seconds: error ? 5 : 2),
-      ));
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: error ? Colors.red.shade700 : null,
+          duration: Duration(seconds: error ? 5 : 2),
+        ),
+      );
   }
 
   /// Runs one backend edit and replaces the local state with the authoritative result.
@@ -131,8 +139,10 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
         _dragDoor = null;
         _doorPointer = null;
         // drop a selection that no longer exists
-        if (_selRoomId != null && !geo.rooms.any((r) => r.id == _selRoomId)) _selRoomId = null;
-        if (_selDoorId != null && !geo.doors.any((d) => d.id == _selDoorId)) _selDoorId = null;
+        if (_selRoomId != null && !geo.rooms.any((r) => r.id == _selRoomId))
+          _selRoomId = null;
+        if (_selDoorId != null && !geo.doors.any((d) => d.id == _selDoorId))
+          _selDoorId = null;
       });
       widget.state.noteGeometry(geo);
       return true;
@@ -192,20 +202,35 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
     final room = _selectedRoom;
     final trimmed = name.trim();
     if (room == null || trimmed.isEmpty || trimmed == room.name) return;
-    await _apply(() => widget.state.geometryRepository.updateRoom(_pid, room.id, name: trimmed));
+    await _apply(
+      () => widget.state.geometryRepository.updateRoom(
+        _pid,
+        room.id,
+        name: trimmed,
+      ),
+    );
     final updated = _selectedRoom;
     if (updated != null) _nameController.text = updated.name;
   }
 
-  Future<void> _commitRoomRect(GeoRoom room, Rect rect) => _apply(() => widget.state.geometryRepository
-      .updateRoom(_pid, room.id, bounds: [rect.left, rect.top, rect.right, rect.bottom]));
+  Future<void> _commitRoomRect(GeoRoom room, Rect rect) => _apply(
+    () => widget.state.geometryRepository.updateRoom(
+      _pid,
+      room.id,
+      bounds: [rect.left, rect.top, rect.right, rect.bottom],
+    ),
+  );
 
   Future<void> _addRoom() async {
     const rect = [0.40, 0.40, 0.60, 0.55];
     final before = _geo?.rooms.map((r) => r.id).toSet() ?? {};
-    final ok = await _apply(() => widget.state.geometryRepository.addRoom(_pid, 'New Room', rect));
+    final ok = await _apply(
+      () => widget.state.geometryRepository.addRoom(_pid, 'New Room', rect),
+    );
     if (ok && mounted) {
-      final created = _geo?.rooms.where((r) => !before.contains(r.id)).firstOrNull;
+      final created = _geo?.rooms
+          .where((r) => !before.contains(r.id))
+          .firstOrNull;
       if (created != null) _selectRoom(created);
     }
   }
@@ -217,24 +242,38 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete room?'),
-        content: Text('Delete "${room.name}" together with its doors and fixtures?'),
+        content: Text(
+          'Delete "${room.name}" together with its doors and fixtures?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
     if (confirmed != true) return;
-    await _apply(() => widget.state.geometryRepository.deleteRoom(_pid, room.id));
+    await _apply(
+      () => widget.state.geometryRepository.deleteRoom(_pid, room.id),
+    );
   }
 
   Future<void> _addDoor(String wall) async {
     final room = _selectedRoom;
     if (room == null) return;
     final before = _geo?.doors.map((d) => d.id).toSet() ?? {};
-    final ok = await _apply(() => widget.state.geometryRepository.addDoor(_pid, room.id, wall));
+    final ok = await _apply(
+      () => widget.state.geometryRepository.addDoor(_pid, room.id, wall),
+    );
     if (ok && mounted) {
-      final created = _geo?.doors.where((d) => !before.contains(d.id)).firstOrNull;
+      final created = _geo?.doors
+          .where((d) => !before.contains(d.id))
+          .firstOrNull;
       if (created != null) _selectDoor(created);
     }
   }
@@ -244,8 +283,40 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
     final room = _geo?.rooms.where((r) => r.id == door.roomId).firstOrNull;
     if (dragged == null || room == null) return;
     final snap = snapToWall(room.rect, dragged.position);
-    await _apply(() => widget.state.geometryRepository
-        .updateDoor(_pid, door.id, wall: snap.wall, position: snap.t));
+    await _apply(
+      () => widget.state.geometryRepository.updateDoor(
+        _pid,
+        door.id,
+        wall: snap.wall,
+        position: snap.t,
+      ),
+    );
+  }
+
+  double _doorWallPosition(GeoDoor door, GeoRoom room) {
+    final rect = room.rect;
+    final position = door.wall == 'north' || door.wall == 'south'
+        ? (door.position.dx - rect.left) / rect.width
+        : (door.position.dy - rect.top) / rect.height;
+    return position.clamp(0.0, 1.0).toDouble();
+  }
+
+  Offset _pointOnWall(GeoRoom room, String wall, double position) {
+    final rect = room.rect;
+    return switch (wall) {
+      'north' => Offset(rect.left + rect.width * position, rect.top),
+      'south' => Offset(rect.left + rect.width * position, rect.bottom),
+      'west' => Offset(rect.left, rect.top + rect.height * position),
+      _ => Offset(rect.right, rect.top + rect.height * position),
+    };
+  }
+
+  void _previewDoorPosition(GeoDoor door, GeoRoom room, double position) {
+    setState(() {
+      _dragDoor = door.copyWith(
+        position: _pointOnWall(room, door.wall, position),
+      );
+    });
   }
 
   Future<void> _regenerate() async {
@@ -261,7 +332,11 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
     }
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('Equipment regenerated from your corrections.')));
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Equipment regenerated from your corrections.'),
+        ),
+      );
     Navigator.pop(context, true);
   }
 
@@ -297,10 +372,30 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
 
   Rect _adjust(Rect base, _Handle h, Offset d) {
     return switch (h) {
-      _Handle.topLeft => Rect.fromLTRB(base.left + d.dx, base.top + d.dy, base.right, base.bottom),
-      _Handle.topRight => Rect.fromLTRB(base.left, base.top + d.dy, base.right + d.dx, base.bottom),
-      _Handle.bottomLeft => Rect.fromLTRB(base.left + d.dx, base.top, base.right, base.bottom + d.dy),
-      _Handle.bottomRight => Rect.fromLTRB(base.left, base.top, base.right + d.dx, base.bottom + d.dy),
+      _Handle.topLeft => Rect.fromLTRB(
+        base.left + d.dx,
+        base.top + d.dy,
+        base.right,
+        base.bottom,
+      ),
+      _Handle.topRight => Rect.fromLTRB(
+        base.left,
+        base.top + d.dy,
+        base.right + d.dx,
+        base.bottom,
+      ),
+      _Handle.bottomLeft => Rect.fromLTRB(
+        base.left + d.dx,
+        base.top,
+        base.right,
+        base.bottom + d.dy,
+      ),
+      _Handle.bottomRight => Rect.fromLTRB(
+        base.left,
+        base.top,
+        base.right + d.dx,
+        base.bottom + d.dy,
+      ),
       _Handle.move => base.shift(d),
     };
   }
@@ -312,8 +407,12 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
     var next = _adjust(base, h, d);
     if (h == _Handle.move) {
       // keep the whole room inside the plan instead of squashing it against the edge
-      final dx = next.left < 0 ? -next.left : (next.right > 1 ? 1 - next.right : 0.0);
-      final dy = next.top < 0 ? -next.top : (next.bottom > 1 ? 1 - next.bottom : 0.0);
+      final dx = next.left < 0
+          ? -next.left
+          : (next.right > 1 ? 1 - next.right : 0.0);
+      final dy = next.top < 0
+          ? -next.top
+          : (next.bottom > 1 ? 1 - next.bottom : 0.0);
       next = next.shift(Offset(dx, dy));
     } else {
       next = clampRect(next);
@@ -326,7 +425,9 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
     final room = _geo?.rooms.where((r) => r.id == door.roomId).firstOrNull;
     if (room == null) return;
     // Accumulate the raw pointer movement; snapping every step would pin the door to its current wall.
-    final pointer = (_doorPointer ?? door.position) + Offset(deltaPx.dx / size.width, deltaPx.dy / size.height);
+    final pointer =
+        (_doorPointer ?? door.position) +
+        Offset(deltaPx.dx / size.width, deltaPx.dy / size.height);
     final snap = snapToWall(room.rect, pointer);
     setState(() {
       _doorPointer = pointer;
@@ -357,7 +458,9 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
                   if (_busy) const LinearProgressIndicator(minHeight: 2),
                   Expanded(child: _buildPlan(isDark)),
                   ConstrainedBox(
-                    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.46),
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.46,
+                    ),
                     child: SingleChildScrollView(child: _buildPanel(isDark)),
                   ),
                 ],
@@ -398,110 +501,143 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
       child: Center(
         child: AspectRatio(
           aspectRatio: aspect,
-          child: LayoutBuilder(builder: (context, constraints) {
-            final size = constraints.biggest;
-            Offset px(Offset r) => Offset(r.dx * size.width, r.dy * size.height);
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final size = constraints.biggest;
+              Offset px(Offset r) =>
+                  Offset(r.dx * size.width, r.dy * size.height);
 
-            final room = _selectedRoom;
-            final door = _selectedDoor;
-            final shownDoor = (_dragDoor != null && door != null && _dragDoor!.id == door.id) ? _dragDoor! : door;
-            final rooms = [
-              for (final r in geo.rooms)
-                if (r.id == _selRoomId && _dragRect != null) r.copyWith(rect: _dragRect) else r
-            ];
-            final doors = [
-              for (final d in geo.doors)
-                if (shownDoor != null && d.id == shownDoor.id) shownDoor else d
-            ];
+              final room = _selectedRoom;
+              final door = _selectedDoor;
+              final shownDoor =
+                  (_dragDoor != null &&
+                      door != null &&
+                      _dragDoor!.id == door.id)
+                  ? _dragDoor!
+                  : door;
+              final rooms = [
+                for (final r in geo.rooms)
+                  if (r.id == _selRoomId && _dragRect != null)
+                    r.copyWith(rect: _dragRect)
+                  else
+                    r,
+              ];
+              final doors = [
+                for (final d in geo.doors)
+                  if (shownDoor != null && d.id == shownDoor.id)
+                    shownDoor
+                  else
+                    d,
+              ];
 
-            final handles = <Widget>[];
-            if (room != null && !_busy) {
-              final rect = _dragRect ?? room.rect;
-              Widget handle(_Handle h, Offset at, {IconData? icon}) => Positioned(
-                    key: Key('room-handle-${h.name}'),
-                    left: at.dx - 16,
-                    top: at.dy - 16,
-                    width: 32,
-                    height: 32,
+              final handles = <Widget>[];
+              if (room != null && !_busy) {
+                final rect = _dragRect ?? room.rect;
+                Widget handle(_Handle h, Offset at, {IconData? icon}) =>
+                    Positioned(
+                      key: Key('room-handle-${h.name}'),
+                      left: at.dx - 16,
+                      top: at.dy - 16,
+                      width: 32,
+                      height: 32,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onPanUpdate: (d) => _dragHandle(room, h, d.delta, size),
+                        onPanEnd: (_) {
+                          final r = _dragRect;
+                          if (r != null) _commitRoomRect(room, r);
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.primaryBlue,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: icon == null
+                              ? null
+                              : Icon(icon, size: 16, color: Colors.white),
+                        ),
+                      ),
+                    );
+                handles
+                  ..add(handle(_Handle.topLeft, px(rect.topLeft)))
+                  ..add(handle(_Handle.topRight, px(rect.topRight)))
+                  ..add(handle(_Handle.bottomLeft, px(rect.bottomLeft)))
+                  ..add(handle(_Handle.bottomRight, px(rect.bottomRight)))
+                  ..add(
+                    handle(
+                      _Handle.move,
+                      px(rect.center),
+                      icon: Icons.open_with_rounded,
+                    ),
+                  );
+              }
+              if (door != null && shownDoor != null && !_busy) {
+                final at = px(shownDoor.position);
+                handles.add(
+                  Positioned(
+                    key: const Key('door-handle'),
+                    left: at.dx - 24,
+                    top: at.dy - 24,
+                    width: 48,
+                    height: 48,
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onPanUpdate: (d) => _dragHandle(room, h, d.delta, size),
-                      onPanEnd: (_) {
-                        final r = _dragRect;
-                        if (r != null) _commitRoomRect(room, r);
-                      },
+                      onPanUpdate: (d) => _dragDoorHandle(door, d.delta, size),
+                      onPanEnd: (_) => _commitDoorDrag(door),
                       child: Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: AppColors.primaryBlue,
+                          color: Colors.orange.shade700.withValues(alpha: 0.9),
                           border: Border.all(color: Colors.white, width: 2),
                         ),
-                        child: icon == null ? null : Icon(icon, size: 16, color: Colors.white),
+                        child: const Icon(
+                          Icons.door_front_door_outlined,
+                          size: 22,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                  );
-              handles
-                ..add(handle(_Handle.topLeft, px(rect.topLeft)))
-                ..add(handle(_Handle.topRight, px(rect.topRight)))
-                ..add(handle(_Handle.bottomLeft, px(rect.bottomLeft)))
-                ..add(handle(_Handle.bottomRight, px(rect.bottomRight)))
-                ..add(handle(_Handle.move, px(rect.center), icon: Icons.open_with_rounded));
-            }
-            if (door != null && shownDoor != null && !_busy) {
-              final at = px(shownDoor.position);
-              handles.add(Positioned(
-                key: const Key('door-handle'),
-                left: at.dx - 18,
-                top: at.dy - 18,
-                width: 36,
-                height: 36,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onPanUpdate: (d) => _dragDoorHandle(door, d.delta, size),
-                  onPanEnd: (_) => _commitDoorDrag(door),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.orange.shade700.withValues(alpha: 0.9),
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: const Icon(Icons.door_front_door_outlined, size: 18, color: Colors.white),
                   ),
-                ),
-              ));
-            }
+                );
+              }
 
-            return Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned.fill(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTapUp: (d) => _onTap(d.localPosition, size),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (widget.planAspectRatio == null)
-                          Image.network(_imageUrl, headers: ApiEndpoints.authHeaders, fit: BoxFit.fill)
-                        else
-                          const ColoredBox(color: Colors.white),
-                        CustomPaint(
-                          painter: _GeometryPainter(
-                            rooms: rooms,
-                            doors: doors,
-                            issues: geo.issues,
-                            selectedRoomId: _selRoomId,
-                            selectedDoorId: _selDoorId,
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTapUp: (d) => _onTap(d.localPosition, size),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (widget.planAspectRatio == null)
+                            Image.network(
+                              _imageUrl,
+                              headers: ApiEndpoints.authHeaders,
+                              fit: BoxFit.fill,
+                            )
+                          else
+                            const ColoredBox(color: Colors.white),
+                          CustomPaint(
+                            painter: _GeometryPainter(
+                              rooms: rooms,
+                              doors: doors,
+                              issues: geo.issues,
+                              selectedRoomId: _selRoomId,
+                              selectedDoorId: _selDoorId,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                ...handles,
-              ],
-            );
-          }),
+                  ...handles,
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -511,7 +647,9 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
     final geo = _geo!;
     final room = _selectedRoom;
     final door = _selectedDoor;
-    final muted = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final muted = isDark
+        ? AppColors.textSecondaryDark
+        : AppColors.textSecondaryLight;
     final errors = geo.errorCount;
     final warnings = geo.issues.length - errors;
 
@@ -519,7 +657,11 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
       decoration: BoxDecoration(
         color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-        border: Border(top: BorderSide(color: isDark ? AppColors.borderDark : AppColors.borderLight)),
+        border: Border(
+          top: BorderSide(
+            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+          ),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -546,13 +688,21 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
           const Divider(height: 20),
           InkWell(
             key: const Key('issues-toggle'),
-            onTap: geo.issues.isEmpty ? null : () => setState(() => _showIssues = !_showIssues),
+            onTap: geo.issues.isEmpty
+                ? null
+                : () => setState(() => _showIssues = !_showIssues),
             child: Row(
               children: [
                 Icon(
-                  errors > 0 ? Icons.error_outline : (warnings > 0 ? Icons.warning_amber_rounded : Icons.check_circle_outline),
+                  errors > 0
+                      ? Icons.error_outline
+                      : (warnings > 0
+                            ? Icons.warning_amber_rounded
+                            : Icons.check_circle_outline),
                   size: 18,
-                  color: errors > 0 ? Colors.red : (warnings > 0 ? Colors.orange : Colors.green),
+                  color: errors > 0
+                      ? Colors.red
+                      : (warnings > 0 ? Colors.orange : Colors.green),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -560,10 +710,14 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
                     geo.issues.isEmpty
                         ? 'Geometry checks passed'
                         : '$errors error${errors == 1 ? '' : 's'} • $warnings warning${warnings == 1 ? '' : 's'}',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-                if (geo.issues.isNotEmpty) Icon(_showIssues ? Icons.expand_less : Icons.expand_more),
+                if (geo.issues.isNotEmpty)
+                  Icon(_showIssues ? Icons.expand_less : Icons.expand_more),
               ],
             ),
           ),
@@ -576,10 +730,20 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(issue.isError ? Icons.cancel_outlined : Icons.info_outline,
-                          size: 15, color: issue.isError ? Colors.red : Colors.orange),
+                      Icon(
+                        issue.isError
+                            ? Icons.cancel_outlined
+                            : Icons.info_outline,
+                        size: 15,
+                        color: issue.isError ? Colors.red : Colors.orange,
+                      ),
                       const SizedBox(width: 6),
-                      Expanded(child: Text(issue.message, style: const TextStyle(fontSize: 12.5))),
+                      Expanded(
+                        child: Text(
+                          issue.message,
+                          style: const TextStyle(fontSize: 12.5),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -596,8 +760,8 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
           Text(
             geo.canGenerate
                 ? (geo.needsRegeneration
-                    ? 'Your corrections are saved. Regenerate to rebuild sockets, lights, circuits, BOQ and cost.'
-                    : 'Equipment matches the current rooms and doors.')
+                      ? 'Your corrections are saved. Regenerate to rebuild sockets, lights, circuits, BOQ and cost.'
+                      : 'Equipment matches the current rooms and doors.')
                 : 'Fix the errors above before equipment can be generated. Nothing is guessed.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 11.5, color: muted),
@@ -665,7 +829,10 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
           separatorBuilder: (_, _) => const SizedBox(width: 6),
           itemBuilder: (context, i) => ActionChip(
             key: Key('name-chip-${kCommonRoomNames[i]}'),
-            label: Text(kCommonRoomNames[i], style: const TextStyle(fontSize: 12)),
+            label: Text(
+              kCommonRoomNames[i],
+              style: const TextStyle(fontSize: 12),
+            ),
             onPressed: _busy ? null : () => _rename(kCommonRoomNames[i]),
           ),
         ),
@@ -680,7 +847,9 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
           for (final w in kWalls)
             OutlinedButton(
               key: Key('add-door-$w'),
-              style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+              style: OutlinedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
               onPressed: _busy ? null : () => _addDoor(w),
               child: Text(w[0].toUpperCase() + w.substring(1)),
             ),
@@ -688,7 +857,10 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
             key: const Key('delete-room'),
             onPressed: _busy ? null : _deleteRoom,
             icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-            label: const Text('Delete room', style: TextStyle(color: Colors.red)),
+            label: const Text(
+              'Delete room',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -698,15 +870,73 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
   List<Widget> _doorControls(GeoDoor door, Color muted) {
     final room = _geo!.rooms.where((r) => r.id == door.roomId).firstOrNull;
     final horizontal = door.wall == 'north' || door.wall == 'south';
-    final sides = horizontal ? const ['west', 'east'] : const ['north', 'south'];
+    final sides = horizontal
+        ? const ['west', 'east']
+        : const ['north', 'south'];
     return [
       Text(
         'Door in ${room?.name ?? 'room'} • ${door.wall} wall',
         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
       ),
       const SizedBox(height: 4),
-      Text('Drag the orange handle along the walls. Switches are placed on the handle side.',
-          style: TextStyle(fontSize: 12, color: muted)),
+      Text(
+        'Drag the orange handle along the walls. Switches are placed on the handle side.',
+        style: TextStyle(fontSize: 12, color: muted),
+      ),
+      if (room != null) ...[
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            const Text('Wall position', style: TextStyle(fontSize: 12)),
+            Expanded(
+              child: Slider(
+                key: const Key('door-position-slider'),
+                min: 0,
+                max: 1,
+                value: _doorWallPosition(_dragDoor ?? door, room),
+                onChanged: _busy
+                    ? null
+                    : (value) => _previewDoorPosition(door, room, value),
+                onChangeEnd: _busy
+                    ? null
+                    : (value) => _apply(
+                        () => widget.state.geometryRepository.updateDoor(
+                          _pid,
+                          door.id,
+                          position: value,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+        Wrap(
+          spacing: 6,
+          children: [
+            for (final wall in kWalls)
+              OutlinedButton(
+                key: Key('door-wall-$wall'),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  backgroundColor: door.wall == wall
+                      ? AppColors.primaryBlue.withValues(alpha: 0.12)
+                      : null,
+                ),
+                onPressed: _busy || door.wall == wall
+                    ? null
+                    : () => _apply(
+                        () => widget.state.geometryRepository.updateDoor(
+                          _pid,
+                          door.id,
+                          wall: wall,
+                          position: _doorWallPosition(door, room),
+                        ),
+                      ),
+                child: Text(wall[0].toUpperCase() + wall.substring(1)),
+              ),
+          ],
+        ),
+      ],
       const SizedBox(height: 8),
       Wrap(
         spacing: 12,
@@ -723,26 +953,52 @@ class _GeometryEditorScreenState extends State<GeometryEditorScreen> {
             selected: {door.swingDirection},
             onSelectionChanged: _busy
                 ? null
-                : (s) => _apply(() => widget.state.geometryRepository
-                    .updateDoor(_pid, door.id, swingDirection: s.first)),
+                : (s) => _apply(
+                    () => widget.state.geometryRepository.updateDoor(
+                      _pid,
+                      door.id,
+                      swingDirection: s.first,
+                    ),
+                  ),
           ),
           SegmentedButton<String>(
             key: const Key('door-strike'),
             showSelectedIcon: false,
             segments: [
-              for (final s in sides) ButtonSegment(value: s, label: Text('Handle ${s[0].toUpperCase()}${s.substring(1)}')),
+              for (final s in sides)
+                ButtonSegment(
+                  value: s,
+                  label: Text('Handle ${s[0].toUpperCase()}${s.substring(1)}'),
+                ),
             ],
-            selected: {sides.contains(door.strikeSide) ? door.strikeSide! : sides.last},
+            selected: {
+              sides.contains(door.strikeSide) ? door.strikeSide! : sides.last,
+            },
             onSelectionChanged: _busy
                 ? null
-                : (s) => _apply(() => widget.state.geometryRepository
-                    .updateDoor(_pid, door.id, strikeSide: s.first)),
+                : (s) => _apply(
+                    () => widget.state.geometryRepository.updateDoor(
+                      _pid,
+                      door.id,
+                      strikeSide: s.first,
+                    ),
+                  ),
           ),
           TextButton.icon(
             key: const Key('delete-door'),
-            onPressed: _busy ? null : () => _apply(() => widget.state.geometryRepository.deleteDoor(_pid, door.id)),
+            onPressed: _busy
+                ? null
+                : () => _apply(
+                    () => widget.state.geometryRepository.deleteDoor(
+                      _pid,
+                      door.id,
+                    ),
+                  ),
             icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-            label: const Text('Delete door', style: TextStyle(color: Colors.red)),
+            label: const Text(
+              'Delete door',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -782,20 +1038,31 @@ class _GeometryPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final severity = _severity;
     Rect px(Rect r) => Rect.fromLTRB(
-        r.left * size.width, r.top * size.height, r.right * size.width, r.bottom * size.height);
+      r.left * size.width,
+      r.top * size.height,
+      r.right * size.width,
+      r.bottom * size.height,
+    );
 
     for (final r in rooms) {
       final rect = px(r.rect);
       final selected = r.id == selectedRoomId;
       final sev = severity[r.id];
-      final base = sev == 'error' ? Colors.red : (sev == 'warning' ? Colors.orange : AppColors.primaryBlue);
-      canvas.drawRect(rect, Paint()..color = base.withValues(alpha: selected ? 0.22 : 0.10));
+      final base = sev == 'error'
+          ? Colors.red
+          : (sev == 'warning' ? Colors.orange : AppColors.primaryBlue);
+      canvas.drawRect(
+        rect,
+        Paint()..color = base.withValues(alpha: selected ? 0.22 : 0.10),
+      );
       canvas.drawRect(
         rect,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = selected ? 3 : 1.6
-          ..color = sev != null ? base : (r.isManual ? manualColor : AppColors.primaryBlue),
+          ..color = sev != null
+              ? base
+              : (r.isManual ? manualColor : AppColors.primaryBlue),
       );
       final tp = TextPainter(
         text: TextSpan(
@@ -823,12 +1090,21 @@ class _GeometryPainter extends CustomPainter {
       final sev = severity[d.id];
       final color = d.id == selectedDoorId
           ? Colors.orange.shade800
-          : (sev == 'error' ? Colors.red : (sev == 'warning' ? Colors.orange : Colors.brown.shade600));
-      canvas.drawRRect(RRect.fromRectAndRadius(bar, const Radius.circular(2)), Paint()..color = color);
-      canvas.drawCircle(c, 9, Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
-        ..color = color);
+          : (sev == 'error'
+                ? Colors.red
+                : (sev == 'warning' ? Colors.orange : Colors.brown.shade600));
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(bar, const Radius.circular(2)),
+        Paint()..color = color,
+      );
+      canvas.drawCircle(
+        c,
+        9,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5
+          ..color = color,
+      );
     }
   }
 

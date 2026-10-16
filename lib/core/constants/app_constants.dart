@@ -6,11 +6,10 @@ class AppConstants {
   static const String defaultCurrency = 'RWF';
   static const String defaultStandard = 'RS IEC 60364';
 
+  /// Only standards the server has design rules for. The server refuses the others, so none are offered here;
+  /// add one back when its rules exist (backend/app/engineering_rules/registry.py).
   static const List<String> electricalStandards = [
     'RS IEC 60364 (Rwanda Standards / IEC)',
-    'BS 7671 (18th Edition IET Wiring Regulations)',
-    'NEC 2023 (NFPA 70)',
-    'CENELEC HD 60364',
   ];
 
   static const List<String> buildingTypes = [

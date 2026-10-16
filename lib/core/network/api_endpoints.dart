@@ -10,9 +10,22 @@ class ApiEndpoints {
   /// Empty for local development, where the backend does not require one.
   static String apiKey = const String.fromEnvironment('API_KEY');
 
+  /// The signed-in user's session token, sent as `Authorization: Bearer`. Empty when signed out, or when the server
+  /// does not ask people to sign in (local development).
+  static String userToken = '';
+
+  /// Called when the server rejects the session token (expired, or the account is gone), so the app can sign out.
+  static void Function()? onSessionExpired;
+
   /// Headers every request to the backend must carry, including plain image downloads.
-  static Map<String, String> get authHeaders =>
-      apiKey.isEmpty ? const {} : {'X-API-Key': apiKey};
+  static Map<String, String> get authHeaders => {
+        if (apiKey.isNotEmpty) 'X-API-Key': apiKey,
+        if (userToken.isNotEmpty) 'Authorization': 'Bearer $userToken',
+      };
+
+  static String get authRegister => '$baseUrl/auth/register';
+  static String get authLogin => '$baseUrl/auth/login';
+  static String get authMe => '$baseUrl/auth/me';
 
   static String get equipment => '$baseUrl/equipment';
   static String projectPoints(String id) => '$baseUrl/projects/$id/points';
@@ -33,6 +46,9 @@ class ApiEndpoints {
   static String get health => '$baseUrl/health';
   static String get projects => '$baseUrl/projects';
   static String project(String id) => '$baseUrl/projects/$id';
+  static String get projectPlanMatch => '$baseUrl/projects/plan-match';
+  static String projectScaleSuggest(String id) => '$baseUrl/projects/$id/scale/suggest';
+  static String projectReport(String id) => '$baseUrl/projects/$id/report.pdf';
   static String projectPlan(String id) => '$baseUrl/projects/$id/plan';
   static String projectPlanFile(String id) => '$baseUrl/projects/$id/plan/file';
   static String analyzeProject(String id) => '$baseUrl/projects/$id/analyze';

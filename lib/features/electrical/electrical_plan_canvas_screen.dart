@@ -74,7 +74,10 @@ class _ElectricalPlanCanvasScreenState
     if (_editMode) widget.state.loadEquipmentCatalog();
   }
 
-  Future<void> _runEdit(Future<String?> Function() action, {String? success}) async {
+  Future<void> _runEdit(
+    Future<String?> Function() action, {
+    String? success,
+  }) async {
     if (_busy) return;
     setState(() => _busy = true);
     final error = await action();
@@ -92,7 +95,12 @@ class _ElectricalPlanCanvasScreenState
     final armed = _armedTypeId;
     if (armed != null) {
       final catalog = widget.state.equipmentCatalog;
-      final name = catalog.where((o) => o.typeId == armed).map((o) => o.name).firstOrNull ?? armed;
+      final name =
+          catalog
+              .where((o) => o.typeId == armed)
+              .map((o) => o.name)
+              .firstOrNull ??
+          armed;
       _runEdit(
         () => widget.state.addElectricalPoint(_projectId, armed, x, y),
         success: '$name placed. Circuits, BOQ and cost updated.',
@@ -142,12 +150,14 @@ class _ElectricalPlanCanvasScreenState
   void _nudgeSelected(double dx, double dy) {
     final point = _selectedPoint;
     if (point == null) return;
-    _runEdit(() => widget.state.moveElectricalPoint(
-          _projectId,
-          point.id,
-          (point.xRatio + dx).clamp(0.0, 1.0),
-          (point.yRatio + dy).clamp(0.0, 1.0),
-        ));
+    _runEdit(
+      () => widget.state.moveElectricalPoint(
+        _projectId,
+        point.id,
+        (point.xRatio + dx).clamp(0.0, 1.0),
+        (point.yRatio + dy).clamp(0.0, 1.0),
+      ),
+    );
   }
 
   Future<void> _deleteSelected() async {
@@ -162,8 +172,14 @@ class _ElectricalPlanCanvasScreenState
           'Circuits, BOQ and cost will be regenerated.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -263,7 +279,8 @@ class _ElectricalPlanCanvasScreenState
     EngineeringBottomSheet.show(
       context: context,
       title: 'Symbol Legend & Standards',
-      subtitle: '${widget.project.standard} Installation Guidelines (IEC 60617 / ANSI)',
+      subtitle:
+          '${widget.project.standard} Installation Guidelines (IEC 60617 / ANSI)',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -425,7 +442,9 @@ class _ElectricalPlanCanvasScreenState
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
-                    color: isDark ? AppColors.accentCyan : const Color(0xFF0284C7),
+                    color: isDark
+                        ? AppColors.accentCyan
+                        : const Color(0xFF0284C7),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -441,9 +460,14 @@ class _ElectricalPlanCanvasScreenState
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryBlue.withValues(alpha: isDark ? 0.2 : 0.08),
+                    color: AppColors.primaryBlue.withValues(
+                      alpha: isDark ? 0.2 : 0.08,
+                    ),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -480,13 +504,20 @@ class _ElectricalPlanCanvasScreenState
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => GeometryEditorScreen(state: widget.state, project: widget.project),
+                builder: (_) => GeometryEditorScreen(
+                  state: widget.state,
+                  project: widget.project,
+                ),
               ),
             ),
           ),
           IconButton(
-            icon: Icon(_editMode ? Icons.edit_off_outlined : Icons.edit_outlined),
-            tooltip: _editMode ? 'Exit edit mode' : 'Edit equipment',
+            icon: Icon(
+              _editMode ? Icons.edit_off_outlined : Icons.edit_outlined,
+            ),
+            tooltip: _editMode
+                ? 'Exit component editing'
+                : 'Add / edit components',
             onPressed: _toggleEditMode,
           ),
           IconButton(
@@ -521,10 +552,12 @@ class _ElectricalPlanCanvasScreenState
           // Zoomable & Pannable Vector Architectural Canvas
           LayoutBuilder(
             builder: (context, constraints) {
-              final canvasWidth =
-                  constraints.maxWidth < 600 ? 760.0 : constraints.maxWidth;
-              final canvasHeight =
-                  constraints.maxWidth < 600 ? 600.0 : constraints.maxHeight;
+              final canvasWidth = constraints.maxWidth < 600
+                  ? 760.0
+                  : constraints.maxWidth;
+              final canvasHeight = constraints.maxWidth < 600
+                  ? 600.0
+                  : constraints.maxHeight;
 
               return InteractiveViewer(
                 transformationController: _transformationController,
@@ -621,8 +654,8 @@ class _ElectricalPlanCanvasScreenState
             child: _editMode
                 ? _buildEditPanel(isDark)
                 : (_selectedPoint != null
-                    ? _buildNudgeToolbar(_selectedPoint!, isDark)
-                    : _buildHintBar(isDark)),
+                      ? _buildNudgeToolbar(_selectedPoint!, isDark)
+                      : _buildHintBar(isDark)),
           ),
         ],
       ),
@@ -663,14 +696,18 @@ class _ElectricalPlanCanvasScreenState
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                    color: isDark
+                        ? AppColors.textPrimaryDark
+                        : AppColors.textPrimaryLight,
                   ),
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryBlue.withValues(alpha: isDark ? 0.2 : 0.1),
+                  color: AppColors.primaryBlue.withValues(
+                    alpha: isDark ? 0.2 : 0.1,
+                  ),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -707,27 +744,41 @@ class _ElectricalPlanCanvasScreenState
   Widget _buildEditPanel(bool isDark) {
     final point = _selectedPoint;
     final catalog = widget.state.equipmentCatalog;
-    final muted = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final muted = isDark
+        ? AppColors.textSecondaryDark
+        : AppColors.textSecondaryLight;
 
     String instruction;
     if (_armedTypeId != null) {
-      final name = catalog.where((o) => o.typeId == _armedTypeId).map((o) => o.name).firstOrNull ?? _armedTypeId!;
+      final name =
+          catalog
+              .where((o) => o.typeId == _armedTypeId)
+              .map((o) => o.name)
+              .firstOrNull ??
+          _armedTypeId!;
       instruction = 'Tap inside a room to place: $name';
     } else if (point != null) {
-      instruction = '${point.label} • ${point.roomName}${point.isManual ? ' • manual' : ''}';
+      instruction =
+          '${point.label} • ${point.roomName}${point.isManual ? ' • manual' : ''}';
     } else {
-      instruction = 'Tap a symbol to select it, or pick equipment below to place.';
+      instruction =
+          'Tap a symbol to select it, or choose a catalog item below to add it.';
     }
 
     return Container(
       key: const Key('equipment-edit-panel'),
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(
-        color: (isDark ? AppColors.surfaceDark : AppColors.surfaceLight).withValues(alpha: 0.97),
+        color: (isDark ? AppColors.surfaceDark : AppColors.surfaceLight)
+            .withValues(alpha: 0.97),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: FloorPlanPainter.manualColor, width: 1.5),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 14, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -737,7 +788,11 @@ class _ElectricalPlanCanvasScreenState
           if (_busy) const LinearProgressIndicator(minHeight: 2),
           Row(
             children: [
-              const Icon(Icons.edit_outlined, size: 16, color: FloorPlanPainter.manualColor),
+              const Icon(
+                Icons.edit_outlined,
+                size: 16,
+                color: FloorPlanPainter.manualColor,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -747,54 +802,102 @@ class _ElectricalPlanCanvasScreenState
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                    color: isDark
+                        ? AppColors.textPrimaryDark
+                        : AppColors.textPrimaryLight,
                   ),
                 ),
               ),
               if (point != null && _armedTypeId == null) ...[
-                _buildNudgeBtn(Icons.arrow_back, 'Nudge left', () => _nudgeSelected(-0.01, 0), isDark),
+                _buildNudgeBtn(
+                  Icons.arrow_back,
+                  'Nudge left',
+                  () => _nudgeSelected(-0.01, 0),
+                  isDark,
+                ),
                 const SizedBox(width: 4),
-                _buildNudgeBtn(Icons.arrow_upward, 'Nudge up', () => _nudgeSelected(0, -0.01), isDark),
+                _buildNudgeBtn(
+                  Icons.arrow_upward,
+                  'Nudge up',
+                  () => _nudgeSelected(0, -0.01),
+                  isDark,
+                ),
                 const SizedBox(width: 4),
-                _buildNudgeBtn(Icons.arrow_downward, 'Nudge down', () => _nudgeSelected(0, 0.01), isDark),
+                _buildNudgeBtn(
+                  Icons.arrow_downward,
+                  'Nudge down',
+                  () => _nudgeSelected(0, 0.01),
+                  isDark,
+                ),
                 const SizedBox(width: 4),
-                _buildNudgeBtn(Icons.arrow_forward, 'Nudge right', () => _nudgeSelected(0.01, 0), isDark),
+                _buildNudgeBtn(
+                  Icons.arrow_forward,
+                  'Nudge right',
+                  () => _nudgeSelected(0.01, 0),
+                  isDark,
+                ),
                 const SizedBox(width: 6),
                 IconButton(
                   key: const Key('delete-point-button'),
-                  icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    size: 20,
+                    color: Colors.red,
+                  ),
                   tooltip: 'Delete selected equipment',
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                   onPressed: _busy ? null : _deleteSelected,
                 ),
               ],
             ],
           ),
           const SizedBox(height: 6),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Add component from catalog',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(height: 4),
           SizedBox(
             height: 36,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: catalog.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 6),
-              itemBuilder: (context, i) {
-                final option = catalog[i];
-                final armed = _armedTypeId == option.typeId;
-                return ChoiceChip(
-                  key: Key('equipment-chip-${option.typeId}'),
-                  avatar: Icon(option.pointType.icon, size: 16),
-                  label: Text(option.name, style: const TextStyle(fontSize: 12)),
-                  selected: armed,
-                  onSelected: _busy
-                      ? null
-                      : (on) => setState(() {
-                            _armedTypeId = on ? option.typeId : null;
-                            if (on) _selectedId = null;
-                          }),
-                );
-              },
-            ),
+            child: catalog.isEmpty
+                ? Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'No components are available in the catalog.',
+                      style: TextStyle(fontSize: 11, color: muted),
+                    ),
+                  )
+                : ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: catalog.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 6),
+                    itemBuilder: (context, i) {
+                      final option = catalog[i];
+                      final armed = _armedTypeId == option.typeId;
+                      return ChoiceChip(
+                        key: Key('equipment-chip-${option.typeId}'),
+                        avatar: Icon(option.pointType.icon, size: 16),
+                        label: Text(
+                          option.name,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        selected: armed,
+                        onSelected: _busy
+                            ? null
+                            : (on) => setState(() {
+                                _armedTypeId = on ? option.typeId : null;
+                                if (on) _selectedId = null;
+                              }),
+                      );
+                    },
+                  ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -806,14 +909,21 @@ class _ElectricalPlanCanvasScreenState
     );
   }
 
-  Widget _buildNudgeBtn(IconData icon, String tooltip, VoidCallback onTap, bool isDark) {
+  Widget _buildNudgeBtn(
+    IconData icon,
+    String tooltip,
+    VoidCallback onTap,
+    bool isDark,
+  ) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
       child: Container(
         padding: const EdgeInsets.all(5),
         decoration: BoxDecoration(
-          color: isDark ? AppColors.surfaceSecondaryDark : AppColors.surfaceSecondaryLight,
+          color: isDark
+              ? AppColors.surfaceSecondaryDark
+              : AppColors.surfaceSecondaryLight,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
             color: isDark ? AppColors.borderDark : AppColors.borderLight,
@@ -822,7 +932,9 @@ class _ElectricalPlanCanvasScreenState
         child: Icon(
           icon,
           size: 16,
-          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+          color: isDark
+              ? AppColors.textPrimaryDark
+              : AppColors.textPrimaryLight,
         ),
       ),
     );
@@ -872,10 +984,7 @@ class _ElectricalPlanCanvasScreenState
           InkWell(
             onTap: _resetZoom,
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 6,
-                vertical: 2,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               child: Text(
                 '100%',
                 style: TextStyle(
@@ -974,8 +1083,9 @@ class _IecBadgePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final strokeColor =
-        isDark ? AppColors.textPrimaryDark : const Color(0xFF1E293B);
+    final strokeColor = isDark
+        ? AppColors.textPrimaryDark
+        : const Color(0xFF1E293B);
     final center = Offset(size.width / 2, size.height / 2);
 
     final strokePaint = Paint()
@@ -1126,8 +1236,12 @@ class _IecBadgePainter extends CustomPainter {
             fontWeight: FontWeight.w900,
           ),
         );
-        final tp = TextPainter(text: textSpan, textDirection: TextDirection.ltr)..layout();
-        tp.paint(canvas, Offset(sockCenter.dx + radius + 1, sockCenter.dy - radius - 2));
+        final tp = TextPainter(text: textSpan, textDirection: TextDirection.ltr)
+          ..layout();
+        tp.paint(
+          canvas,
+          Offset(sockCenter.dx + radius + 1, sockCenter.dy - radius - 2),
+        );
         break;
 
       case _IecBadgeType.switchingLoop:
@@ -1154,7 +1268,10 @@ class _IecBadgePainter extends CustomPainter {
         const dbW = 28.0;
         const dbH = 12.0;
         final dbRect = Rect.fromCenter(
-            center: Offset(center.dx, center.dy - 3), width: dbW, height: dbH);
+          center: Offset(center.dx, center.dy - 3),
+          width: dbW,
+          height: dbH,
+        );
         final dbPath = Path()
           ..moveTo(dbRect.left, dbRect.top)
           ..lineTo(dbRect.right, dbRect.top)
@@ -1171,8 +1288,12 @@ class _IecBadgePainter extends CustomPainter {
             letterSpacing: 0.5,
           ),
         );
-        final dbTp = TextPainter(text: dbText, textDirection: TextDirection.ltr)..layout();
-        dbTp.paint(canvas, Offset(center.dx - (dbTp.width / 2), dbRect.bottom + 1.5));
+        final dbTp = TextPainter(text: dbText, textDirection: TextDirection.ltr)
+          ..layout();
+        dbTp.paint(
+          canvas,
+          Offset(center.dx - (dbTp.width / 2), dbRect.bottom + 1.5),
+        );
         break;
 
       case _IecBadgeType.dedicatedAppliance:
@@ -1189,8 +1310,14 @@ class _IecBadgePainter extends CustomPainter {
             fontWeight: FontWeight.w800,
           ),
         );
-        final appTp = TextPainter(text: appText, textDirection: TextDirection.ltr)..layout();
-        appTp.paint(canvas, Offset(center.dx - (appTp.width / 2), center.dy - (appTp.height / 2)));
+        final appTp = TextPainter(
+          text: appText,
+          textDirection: TextDirection.ltr,
+        )..layout();
+        appTp.paint(
+          canvas,
+          Offset(center.dx - (appTp.width / 2), center.dy - (appTp.height / 2)),
+        );
         break;
     }
   }
@@ -1199,4 +1326,3 @@ class _IecBadgePainter extends CustomPainter {
   bool shouldRepaint(covariant _IecBadgePainter oldDelegate) =>
       oldDelegate.type != type || oldDelegate.isDark != isDark;
 }
-
