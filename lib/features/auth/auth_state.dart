@@ -80,6 +80,10 @@ class AuthState extends ChangeNotifier {
   String get email => _email;
   String _name = '';
   String get name => _name;
+  bool _isAdmin = false;
+
+  /// Administrators can open every account's projects and manage accounts.
+  bool get isAdmin => _isAdmin;
 
   /// False when the server lets anyone in (local development): there is nothing to sign out of.
   bool _loginRequired = true;
@@ -177,6 +181,7 @@ class AuthState extends ChangeNotifier {
     ApiEndpoints.userToken = '';
     _email = '';
     _name = '';
+    _isAdmin = false;
     await _store.write(null);
   }
 
@@ -184,6 +189,7 @@ class AuthState extends ChangeNotifier {
     if (user is Map) {
       _email = (user['email'] ?? '').toString();
       _name = (user['name'] ?? '').toString();
+      _isAdmin = user['is_admin'] == true;
     }
   }
 

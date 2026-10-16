@@ -19,6 +19,10 @@ meant for trying the app out; Railway and Fly.io work with the same Dockerfile a
 * Not built yet: password reset and email verification (a forgotten password cannot be recovered), and
   signing out does not invalidate the token on the server (it is deleted from the device; it expires after
   30 days). Accounts are open to anyone who holds the APK.
+* **Administrators** are the emails listed in `ADMIN_EMAILS` (comma-separated). They get an *Admin console* in
+  Settings: overview, every account (deactivate / reactivate) and every project, and can open any project.
+  Email addresses are not verified, so **register the admin account yourself immediately after setting
+  `ADMIN_EMAILS`**; until you do, someone else could register that address and become admin.
 * Projects created before accounts existed have no owner and are invisible to everyone. Set
   `LEGACY_OWNER_EMAIL` to the email you will register with and they move to that account at its first sign-in.
 * On the free setup, uploaded plans live on temporary storage and disappear on every restart (see section 4).

@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     # Projects created before accounts existed have no owner; the account with this email receives them when it
     # signs in. Leave empty to leave them unowned (and therefore invisible).
     LEGACY_OWNER_EMAIL: str = ""
+    # Comma-separated emails of administrators: they can see and open every user's projects and manage accounts.
+    # Register the admin account yourself right after setting this (an email nobody has verified).
+    ADMIN_EMAILS: str = ""
 
     # Engineering Standard
     DEFAULT_STANDARD: str = "RS IEC 60364"

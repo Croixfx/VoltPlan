@@ -10,6 +10,7 @@ from app.core.auth import (
     MIN_PASSWORD_LENGTH,
     auth_enabled,
     create_token,
+    is_admin,
     get_current_user,
     hash_password,
     is_valid_email,
@@ -50,7 +51,7 @@ def _too_many_failures(email: str, now: float) -> bool:
 
 def _session(user: User) -> dict:
     return {"access_token": create_token(user), "token_type": "bearer",
-            "user": {"id": user.id, "email": user.email, "name": user.name}}
+            "user": {"id": user.id, "email": user.email, "name": user.name, "is_admin": is_admin(user)}}
 
 
 def _adopt_legacy_projects(user: User, db: Session) -> None:
@@ -94,6 +95,8 @@ def login(data: Credentials, db: Session = Depends(get_db)):
     if not verify_password(data.password, stored) or user is None:
         _failures[email].append(now)
         raise HTTPException(status_code=401, detail="Wrong email or password.")
+    if user.deactivated_at is not None:
+        raise HTTPException(status_code=403, detail="This account has been deactivated. Contact the administrator.")
 
     _failures.pop(email, None)
     _adopt_legacy_projects(user, db)
@@ -104,4 +107,4 @@ def login(data: Credentials, db: Session = Depends(get_db)):
 def me(user: Optional[User] = Depends(get_current_user)):
     if user is None:
         raise HTTPException(status_code=503, detail="Sign-in is not switched on for this server.")
-    return {"id": user.id, "email": user.email, "name": user.name}
+    return {"id": user.id, "email": user.email, "name": user.name, "is_admin": is_admin(user)}

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from app.core.auth import get_current_user, require_project_access
 from app.core.security import require_api_key
-from app.api.routes import health, projects, uploads, analysis, scale, equipment, points, geometry, calculations, ai, reports, auth
+from app.api.routes import health, projects, uploads, analysis, scale, equipment, points, geometry, calculations, ai, reports, auth, admin
 
 api_router = APIRouter(prefix="/api")
 
@@ -24,5 +24,6 @@ owned.include_router(geometry.router)
 owned.include_router(calculations.router)
 owned.include_router(ai.router)
 owned.include_router(reports.router)
+owned.include_router(admin.router)
 protected.include_router(owned)
 api_router.include_router(protected)

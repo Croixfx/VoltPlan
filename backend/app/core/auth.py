@@ -33,6 +33,13 @@ def auth_enabled() -> bool:
     return bool(settings.AUTH_SECRET)
 
 
+def is_admin(user: Optional[User]) -> bool:
+    if user is None:
+        return False
+    admins = {normalise_email(e) for e in settings.ADMIN_EMAILS.split(",") if e.strip()}
+    return user.email in admins
+
+
 def normalise_email(email: str) -> str:
     return (email or "").strip().lower()
 
@@ -109,12 +116,20 @@ async def get_current_user(
     token = _bearer(authorization)
     user_id = read_token(token) if token else None
     user = db.get(User, user_id) if user_id else None
+    if user is not None and user.deactivated_at is not None:
+        raise HTTPException(status_code=403, detail="This account has been deactivated. Contact the administrator.")
     if user is None:
         raise HTTPException(
             status_code=401,
             detail="Please sign in again.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    return user
+
+
+async def require_admin(user: Optional[User] = Depends(get_current_user)) -> User:
+    if user is None or not is_admin(user):
+        raise HTTPException(status_code=403, detail="Administrators only.")
     return user
 
 
@@ -126,7 +141,7 @@ async def require_project_access(
     """Routes under /projects/{project_id}/...: the project must belong to the signed-in user. Someone else's
     project answers 404, exactly like one that does not exist."""
     project_id = request.path_params.get("project_id")
-    if user is None or project_id is None:
+    if user is None or project_id is None or is_admin(user):
         return
     owner_id = db.query(Project.owner_id).filter(Project.id == project_id).scalar()
     if owner_id != user.id:

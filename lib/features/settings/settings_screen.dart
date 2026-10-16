@@ -5,6 +5,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/engineering_sheet.dart';
 import '../../core/widgets/section_header.dart';
 import '../../shared/state/app_state.dart';
+import '../admin/admin_screen.dart';
 import '../auth/auth_state.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -250,6 +251,19 @@ class SettingsScreen extends StatelessWidget {
                         isDark: isDark,
                         onTap: () => _showAboutDialog(context),
                       ),
+                      if (AuthState.instance?.isAdmin == true) ...[
+                        const Divider(height: 1),
+                        _buildSettingsTile(
+                          icon: Icons.admin_panel_settings_outlined,
+                          title: 'Admin console',
+                          value: 'All accounts and projects',
+                          isDark: isDark,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => AdminScreen(state: state)),
+                          ),
+                        ),
+                      ],
                       if (AuthState.instance?.loginRequired == true &&
                           AuthState.instance?.isSignedIn == true) ...[
                         const Divider(height: 1),

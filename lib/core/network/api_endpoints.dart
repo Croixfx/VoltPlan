@@ -26,6 +26,12 @@ class ApiEndpoints {
   static String get authRegister => '$baseUrl/auth/register';
   static String get authLogin => '$baseUrl/auth/login';
   static String get authMe => '$baseUrl/auth/me';
+  static String get adminOverview => '$baseUrl/admin/overview';
+  static String get adminUsers => '$baseUrl/admin/users';
+  static String adminProjects({String? query}) =>
+      '$baseUrl/admin/projects${query == null || query.isEmpty ? '' : '?q=${Uri.encodeQueryComponent(query)}'}';
+  static String adminDeactivate(String id) => '$baseUrl/admin/users/$id/deactivate';
+  static String adminReactivate(String id) => '$baseUrl/admin/users/$id/reactivate';
 
   static String get equipment => '$baseUrl/equipment';
   static String projectPoints(String id) => '$baseUrl/projects/$id/points';

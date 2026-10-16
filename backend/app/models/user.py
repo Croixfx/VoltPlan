@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import Column, DateTime, String, Text
 from app.db.database import Base
 
 
@@ -12,3 +12,5 @@ class User(Base):
     name = Column(String(255), nullable=False, default="")
     password_hash = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    deactivated_at = Column(DateTime, nullable=True)  # set by an admin: the account can no longer sign in or act
+    deactivated_reason = Column(Text, nullable=True)

@@ -54,6 +54,10 @@ services:
       # app; this one never leaves the server). Without it production refuses to start. Enter it in the dashboard.
       - key: AUTH_SECRET
         sync: false
+      # Comma-separated emails of administrators (see all accounts and projects, deactivate accounts). Register
+      # the admin account yourself right after setting this: nobody verifies email ownership yet.
+      - key: ADMIN_EMAILS
+        sync: false
       # Projects made before accounts existed have no owner. The account with this email receives them the first
       # time it signs in. Optional; leave empty to keep them unowned.
       - key: LEGACY_OWNER_EMAIL
