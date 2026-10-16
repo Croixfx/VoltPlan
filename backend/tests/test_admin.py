@@ -106,3 +106,31 @@ def test_admins_cannot_be_deactivated_and_unknown_accounts_404(client):
     boss, boss_user = register(client, "boss@example.com")
     assert client.post(f"/api/admin/users/{boss_user['id']}/deactivate", json={}, headers=boss).status_code == 400
     assert client.post("/api/admin/users/nope/deactivate", json={}, headers=boss).status_code == 404
+
+
+def test_an_admin_can_make_and_unmake_another_admin(client):
+    boss, boss_user = register(client, "boss@example.com")
+    ana, ana_user = register(client, "ana@example.com")
+    assert client.get("/api/admin/users", headers=ana).status_code == 403
+
+    assert client.post(f"/api/admin/users/{ana_user['id']}/make-admin", headers=boss).status_code == 200
+    assert client.get("/api/admin/users", headers=ana).status_code == 200      # takes effect immediately
+    assert client.get("/api/auth/me", headers=ana).json()["is_admin"] is True
+
+    # the new admin can promote too, but cannot demote the owner or themselves
+    ben, ben_user = register(client, "ben@example.com")
+    assert client.post(f"/api/admin/users/{ben_user['id']}/make-admin", headers=ana).status_code == 200
+    assert client.post(f"/api/admin/users/{boss_user['id']}/remove-admin", headers=ana).status_code == 400
+    assert client.post(f"/api/admin/users/{ana_user['id']}/remove-admin", headers=ana).status_code == 400
+
+    assert client.post(f"/api/admin/users/{ana_user['id']}/remove-admin", headers=boss).status_code == 200
+    assert client.get("/api/admin/users", headers=ana).status_code == 403
+    listed = {u["email"]: u for u in client.get("/api/admin/users", headers=boss).json()}
+    assert listed["boss@example.com"]["is_owner"] is True and listed["ben@example.com"]["is_owner"] is False
+
+
+def test_admins_granted_in_the_app_are_protected_from_deactivation(client):
+    boss, _ = register(client, "boss@example.com")
+    ana, ana_user = register(client, "ana@example.com")
+    client.post(f"/api/admin/users/{ana_user['id']}/make-admin", headers=boss)
+    assert client.post(f"/api/admin/users/{ana_user['id']}/deactivate", json={}, headers=boss).status_code == 400

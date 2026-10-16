@@ -15,6 +15,8 @@ def ensure_owner_column() -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_projects_owner_id ON projects (owner_id)"))
 
         user_columns = {c["name"] for c in inspect(conn).get_columns("users")}
+        if "is_admin" not in user_columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE"))
         if "deactivated_at" not in user_columns:
             conn.execute(text("ALTER TABLE users ADD COLUMN deactivated_at TIMESTAMP"))
         if "deactivated_reason" not in user_columns:

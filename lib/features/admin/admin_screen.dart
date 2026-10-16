@@ -111,6 +111,17 @@ class _AdminScreenState extends State<AdminScreen> {
     }
   }
 
+  Future<void> _setAdmin(Map<String, dynamic> user, bool admin) async {
+    try {
+      await _client.post(admin
+          ? ApiEndpoints.adminMakeAdmin(user['id'])
+          : ApiEndpoints.adminRemoveAdmin(user['id']));
+      await _load();
+    } on ApiException catch (e) {
+      _toast(e.message);
+    }
+  }
+
   void _toast(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
@@ -197,6 +208,12 @@ class _AdminScreenState extends State<AdminScreen> {
         final u = _users[i];
         final off = u['deactivated_at'] != null;
         final admin = u['is_admin'] == true;
+        final actions = <PopupMenuEntry<String>>[
+          if (!admin && !off) const PopupMenuItem(value: 'make-admin', child: Text('Make admin')),
+          if (admin && u['is_owner'] != true) const PopupMenuItem(value: 'remove-admin', child: Text('Remove admin')),
+          if (!admin && !off) const PopupMenuItem(value: 'deactivate', child: Text('Deactivate')),
+          if (off) const PopupMenuItem(value: 'reactivate', child: Text('Reactivate')),
+        ];
         return ListTile(
           title: Text('${u['email']}${admin ? '  (admin)' : ''}'),
           subtitle: Text([
@@ -204,12 +221,23 @@ class _AdminScreenState extends State<AdminScreen> {
             '${u['project_count']} project(s)',
             if (off) 'DEACTIVATED${u['deactivated_reason'] == null ? '' : ': ${u['deactivated_reason']}'}',
           ].join(' • ')),
-          trailing: admin
-              ? null
-              : TextButton(
-                  onPressed: () => _changeAccess(u, !off),
-                  child: Text(off ? 'Reactivate' : 'Deactivate'),
-                ),
+          trailing: PopupMenuButton<String>(
+            tooltip: 'Actions',
+            enabled: actions.isNotEmpty, // the owner admin has nothing to change
+            onSelected: (action) {
+              switch (action) {
+                case 'make-admin':
+                  _setAdmin(u, true);
+                case 'remove-admin':
+                  _setAdmin(u, false);
+                case 'deactivate':
+                  _changeAccess(u, true);
+                case 'reactivate':
+                  _changeAccess(u, false);
+              }
+            },
+            itemBuilder: (_) => actions,
+          ),
         );
       },
     );

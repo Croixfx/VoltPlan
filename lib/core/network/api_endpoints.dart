@@ -31,6 +31,8 @@ class ApiEndpoints {
   static String adminProjects({String? query}) =>
       '$baseUrl/admin/projects${query == null || query.isEmpty ? '' : '?q=${Uri.encodeQueryComponent(query)}'}';
   static String adminDeactivate(String id) => '$baseUrl/admin/users/$id/deactivate';
+  static String adminMakeAdmin(String id) => '$baseUrl/admin/users/$id/make-admin';
+  static String adminRemoveAdmin(String id) => '$baseUrl/admin/users/$id/remove-admin';
   static String adminReactivate(String id) => '$baseUrl/admin/users/$id/reactivate';
 
   static String get equipment => '$baseUrl/equipment';

@@ -20,7 +20,8 @@ meant for trying the app out; Railway and Fly.io work with the same Dockerfile a
   signing out does not invalidate the token on the server (it is deleted from the device; it expires after
   30 days). Accounts are open to anyone who holds the APK.
 * **Administrators** are the emails listed in `ADMIN_EMAILS` (comma-separated). They get an *Admin console* in
-  Settings: overview, every account (deactivate / reactivate) and every project, and can open any project.
+  Settings: overview, every account (deactivate / reactivate; make or remove another admin) and every project,
+  and can open any project. Emails in `ADMIN_EMAILS` are the permanent owners and cannot be demoted in the app.
   Email addresses are not verified, so **register the admin account yourself immediately after setting
   `ADMIN_EMAILS`**; until you do, someone else could register that address and become admin.
 * Projects created before accounts existed have no owner and are invisible to everyone. Set

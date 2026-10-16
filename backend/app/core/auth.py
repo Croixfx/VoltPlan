@@ -36,6 +36,11 @@ def auth_enabled() -> bool:
 def is_admin(user: Optional[User]) -> bool:
     if user is None:
         return False
+    return is_owner_admin(user) or bool(user.is_admin)
+
+
+def is_owner_admin(user: User) -> bool:
+    """Listed in ADMIN_EMAILS: always an admin, and cannot be demoted from the app."""
     admins = {normalise_email(e) for e in settings.ADMIN_EMAILS.split(",") if e.strip()}
     return user.email in admins
 

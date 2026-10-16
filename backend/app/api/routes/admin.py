@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.core.auth import is_admin, require_admin
+from app.core.auth import is_admin, is_owner_admin, require_admin
 from app.db.database import get_db
 from app.models.analysis import Analysis
 from app.models.project import Project
@@ -56,6 +56,7 @@ def list_users(db: Session = Depends(get_db)):
             "name": u.name,
             "created_at": _iso(u.created_at),
             "is_admin": is_admin(u),
+            "is_owner": is_owner_admin(u),  # listed in ADMIN_EMAILS: cannot be demoted here
             "deactivated_at": _iso(u.deactivated_at),
             "deactivated_reason": u.deactivated_reason,
             "project_count": counts.get(u.id, 0),
@@ -110,6 +111,28 @@ def deactivate(user_id: str, data: Deactivation, db: Session = Depends(get_db)):
     user.deactivated_reason = (data.reason or "").strip() or None
     db.commit()
     return {"id": user.id, "deactivated": True}
+
+
+@router.post("/users/{user_id}/make-admin")
+def make_admin(user_id: str, db: Session = Depends(get_db)):
+    user = _target(user_id, db)
+    if user.deactivated_at is not None:
+        raise HTTPException(status_code=400, detail="Reactivate this account before making it an administrator.")
+    user.is_admin = True
+    db.commit()
+    return {"id": user.id, "is_admin": True}
+
+
+@router.post("/users/{user_id}/remove-admin")
+def remove_admin(user_id: str, current: User = Depends(require_admin), db: Session = Depends(get_db)):
+    user = _target(user_id, db)
+    if is_owner_admin(user):
+        raise HTTPException(status_code=400, detail="This administrator is set on the server (ADMIN_EMAILS) and cannot be removed here.")
+    if user.id == current.id:
+        raise HTTPException(status_code=400, detail="You cannot remove your own administrator access.")
+    user.is_admin = False
+    db.commit()
+    return {"id": user.id, "is_admin": False}
 
 
 @router.post("/users/{user_id}/reactivate")
